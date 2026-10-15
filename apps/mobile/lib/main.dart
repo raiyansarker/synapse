@@ -15,7 +15,10 @@ class MainApp extends StatelessWidget {
           toolbarHeight: 300,
           backgroundColor: Colors.red,
           centerTitle: true,
-          title: const Text('Nigga App'),
+          title: const CircleAvatar(
+            radius: 100,
+            backgroundImage: NetworkImage('https://i.postimg.cc/QMYSkGhW/Gemini-Generated-Image-mqgujnmqgujnmqgu.jpg'),
+          ),
         ),
         body: const Center(
           child: Text('Mustak has stolen our ideas.'),
