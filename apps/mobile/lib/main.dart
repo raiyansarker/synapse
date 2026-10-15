@@ -9,8 +9,22 @@ class MainApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
-      home: Scaffold(body: Center(child: Text('Hello World!'))),
+    return MaterialApp(
+      home: Scaffold(
+        appBar: AppBar(
+          toolbarHeight: 300,
+          backgroundColor: Colors.red,
+          centerTitle: true,
+          title: const Text('Nigga App'),
+        ),
+        body: const Center(
+          child: Text('Mustak has stolen our ideas.'),
+        ),
+        bottomNavigationBar: BottomNavigationBar(items: const[
+          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile')
+        ]),
+      ),
     );
   }
 }
