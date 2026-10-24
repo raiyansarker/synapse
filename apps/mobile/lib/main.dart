@@ -28,6 +28,8 @@ class _HomeShellState extends State<HomeShell> {
 
   static const List<Widget> _pages = [
     HomePage(),
+    SendPage(),
+    ReceivePage(),
     ProfilePage(),
   ];
 
@@ -35,17 +37,20 @@ class _HomeShellState extends State<HomeShell> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: IndexedStack(index: _index, children: _pages),
-      bottomNavigationBar: BottomNavigationBar(
-        currentIndex: _index,
-        onTap: (i) => setState(() => _index = i),
-        selectedItemColor: Colors.black,
-        unselectedItemColor: Colors.grey,
-        backgroundColor: Colors.white,
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
-        ],
-      ),
+bottomNavigationBar: BottomNavigationBar(
+  type: BottomNavigationBarType.fixed,
+  currentIndex: _index,
+  onTap: (i) => setState(() => _index = i),
+  selectedItemColor: Colors.black,
+  unselectedItemColor: Colors.grey,
+  backgroundColor: Colors.white,
+  items: const [
+    BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
+    BottomNavigationBarItem(icon: Icon(Icons.north_east), label: 'Send'),
+    BottomNavigationBarItem(icon: Icon(Icons.south_west), label: 'Receive'),
+    BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
+  ],
+),
     );
   }
 }
@@ -143,7 +148,7 @@ class HomePage extends StatelessWidget {
                   borderRadius: BorderRadius.circular(24),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.1),
+                      color: Colors.black.withValues(alpha: 0.1),
                       blurRadius: 20,
                       offset: const Offset(0, 10),
                     )
@@ -202,17 +207,7 @@ class HomePage extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(height: 24),
 
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: const [
-                  _ActionButton(icon: Icons.north_east, label: 'Send'),
-                  _ActionButton(icon: Icons.south_west, label: 'Receive'),
-                  _ActionButton(icon: Icons.account_balance_wallet_outlined, label: 'Withdraw'),
-                  _ActionButton(icon: Icons.credit_card, label: 'Card'),
-                ],
-              ),
               const SizedBox(height: 30),
 
               Row(
@@ -305,7 +300,7 @@ class _Header extends StatelessWidget {
             shape: BoxShape.circle,
             boxShadow: [
               BoxShadow(
-                color: Colors.grey.withOpacity(0.1),
+                color: Colors.grey.withValues(alpha: 0.1),
                 spreadRadius: 1,
                 blurRadius: 10,
               ),
@@ -336,7 +331,7 @@ class _ActionButton extends StatelessWidget {
             borderRadius: BorderRadius.circular(16),
             boxShadow: [
               BoxShadow(
-                color: Colors.grey.withOpacity(0.1),
+                color: Colors.grey.withValues(alpha: 0.1),
                 spreadRadius: 1,
                 blurRadius: 10,
                 offset: const Offset(0, 4),
@@ -375,7 +370,7 @@ class _TransactionTile extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: Colors.white.withOpacity(0.6),
+        color: Colors.white.withValues(alpha: 0.6),
         borderRadius: BorderRadius.circular(20),
         border: Border.all(color: Colors.white, width: 1),
       ),
@@ -437,7 +432,7 @@ class _ChartPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final gridPaint = Paint()
-      ..color = Colors.white.withOpacity(0.1)
+      ..color = Colors.white.withValues(alpha: 0.1)
       ..strokeWidth = 1;
 
     // Draw Horizontal Grid Lines
@@ -475,7 +470,7 @@ class _ChartPainter extends CustomPainter {
     canvas.drawPath(path, linePaint);
 
     final dashedPaint = Paint()
-      ..color = Colors.white.withOpacity(0.6)
+      ..color = Colors.white.withValues(alpha: 0.6)
       ..strokeWidth = 1.5
       ..style = PaintingStyle.stroke;
 
@@ -491,6 +486,256 @@ class _ChartPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+class SendPage extends StatelessWidget {
+  const SendPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final codeController = TextEditingController();
+
+    return Container(
+      width: double.infinity,
+      height: double.infinity,
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color(0xFFF5F2E9), Color(0xFFFAFAFA)],
+        ),
+      ),
+      child: SafeArea(
+        bottom: false,
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Send Money',
+                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Scan a QR code or enter a payment code',
+                style: TextStyle(color: Colors.grey[700], fontSize: 14),
+              ),
+              const SizedBox(height: 28),
+
+              // QR scanner placeholder
+              GestureDetector(
+                onTap: () => ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('QR scanner coming soon')),
+                ),
+                child: Container(
+                  width: double.infinity,
+                  height: 260,
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF24252A),
+                    borderRadius: BorderRadius.circular(24),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.1),
+                        blurRadius: 20,
+                        offset: const Offset(0, 10),
+                      ),
+                    ],
+                  ),
+                  child: Stack(
+                    children: [
+                      // Corner brackets
+                      const _ScannerCorners(),
+                      Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(
+                              Icons.qr_code_scanner,
+                              size: 64,
+                              color: Colors.grey[400],
+                            ),
+                            const SizedBox(height: 12),
+                            const Text(
+                              'Tap to scan',
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 24),
+
+              // Divider with "or"
+              Row(
+                children: [
+                  Expanded(child: Divider(color: Colors.grey[400])),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    child: Text(
+                      'or',
+                      style: TextStyle(color: Colors.grey[600], fontSize: 13),
+                    ),
+                  ),
+                  Expanded(child: Divider(color: Colors.grey[400])),
+                ],
+              ),
+              const SizedBox(height: 24),
+
+              // Manual code entry
+              const Text(
+                'Enter code',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: codeController,
+                textCapitalization: TextCapitalization.characters,
+                style: const TextStyle(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 2,
+                ),
+                decoration: InputDecoration(
+                  hintText: 'e.g. ABC-123-XYZ',
+                  hintStyle: TextStyle(color: Colors.grey[500], letterSpacing: 1),
+                  filled: true,
+                  fillColor: Colors.white,
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(16),
+                    borderSide: BorderSide.none,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 30),
+
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: ElevatedButton(
+                  onPressed: () {
+                    final code = codeController.text.trim();
+                    if (code.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Enter a code first')),
+                      );
+                      return;
+                    }
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Looking up code: $code')),
+                    );
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF24252A),
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(18),
+                    ),
+                    elevation: 0,
+                  ),
+                  child: const Text(
+                    'Continue',
+                    style:
+                        TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 20),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ScannerCorners extends StatelessWidget {
+  const _ScannerCorners();
+
+  @override
+  Widget build(BuildContext context) {
+    const len = 28.0;
+    const thick = 3.0;
+    const pad = 20.0;
+    const color = Color(0xFFFFB300);
+
+    Widget corner({bool top = true, bool left = true}) => Positioned(
+          top: top ? pad : null,
+          bottom: top ? null : pad,
+          left: left ? pad : null,
+          right: left ? null : pad,
+          child: SizedBox(
+            width: len,
+            height: len,
+            child: CustomPaint(
+              painter: _CornerPainter(
+                color: color,
+                thickness: thick,
+                top: top,
+                left: left,
+              ),
+            ),
+          ),
+        );
+
+    return Stack(children: [
+      corner(top: true, left: true),
+      corner(top: true, left: false),
+      corner(top: false, left: true),
+      corner(top: false, left: false),
+    ]);
+  }
+}
+
+class _CornerPainter extends CustomPainter {
+  final Color color;
+  final double thickness;
+  final bool top;
+  final bool left;
+
+  _CornerPainter({
+    required this.color,
+    required this.thickness,
+    required this.top,
+    required this.left,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final p = Paint()
+      ..color = color
+      ..strokeWidth = thickness
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.stroke;
+
+    final y = top ? 0.0 : size.height;
+    final x = left ? 0.0 : size.width;
+    final yEnd = top ? size.height : 0.0;
+    final xEnd = left ? size.width : 0.0;
+
+    canvas.drawLine(Offset(x, y), Offset(xEnd, y), p);
+    canvas.drawLine(Offset(x, y), Offset(x, yEnd), p);
+  }
+
+  @override
+  bool shouldRepaint(covariant _CornerPainter old) =>
+      old.top != top || old.left != left;
+}
+
+class ReceivePage extends StatelessWidget {
+  const ReceivePage({super.key});
+  @override
+  Widget build(BuildContext context) =>
+      const Center(child: Text('Receive Page'));
 }
 
 class ProfilePage extends StatelessWidget {
