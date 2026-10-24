@@ -9,6 +9,15 @@ environment:
 dependencies:
   flutter:
     sdk: flutter
+  qr_flutter: ^4.1.0
+  image_picker: ^1.1.2
+  pdf: ^3.10.8
+  printing: ^5.11.0
+  mobile_scanner: ^5.0.0
+
+dependency_overrides:
+  barcode: ^2.2.0
+  qr: ^3.0.1
 
 dev_dependencies:
   flutter_test:
