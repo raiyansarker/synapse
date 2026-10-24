@@ -11,34 +11,19 @@ import 'package:qr_flutter/qr_flutter.dart';
 // ============================================================================
 // BACKEND DEVELOPER INTEGRATION GUIDE
 // ============================================================================
-// 1. USER STATE: 
-//    Currently using `userNotifier` for state management. 
+// 1. USER STATE & LANGUAGE: 
+//    Currently using `userNotifier` and `isBanglaNotifier` for state.
 //    - When logging in, update `userNotifier.value = UserState(name: "Name", avatarPath: "url")`.
-//    - To update the avatar/name, call `userNotifier.value.copyWith(...)`.
+//    - The app natively supports Bangla/English via `isBanglaNotifier`. 
 //
 // 2. TRANSACTIONS DATA:
 //    Replace `allTransactions` with a list fetched from your API.
-//    Expected model:
-//    class Tx {
-//      final String title;       // e.g., "Shopping at Daraz"
-//      final String subtitle;    // e.g., "Payment"
-//      final double amount;      // Negative for expenses (-248.59), Positive for income (850.00)
-//      final String time;        // e.g., "08:43 pm"
-//      final DateTime date;      // e.g., DateTime(2025, 12, 15, 20, 43)
-//      final IconData icon;      // Frontend maps this based on category string.
-//    }
 //
 // 3. CHART DATA:
 //    The chart uses `_monthlyReceived()` and `_monthlySent()`. 
-//    These currently manually aggregate the hardcoded list for months May-Dec (index 5-12).
-//    Ideally, create an API endpoint: GET /analytics/cashflow?year=2025
-//    Returning: { "received": [0, 0, 0, 0, 3200, ...], "sent": [...] } (8 items for 8 months).
 //
 // 4. INVOICE / PDF GENERATION:
-//    The `_shareInvoice` function currently generates the PDF client-side.
-//    If you prefer generating PDFs on the backend, replace this function with:
-//    `launchUrl(Uri.parse("https://api.yourdomain.com/invoice/${tx.id}"))`
-//    or download the bytes from the API and pass them to `Printing.sharePdf`.
+//    Generates PDF client-side.
 //
 // 5. SEND / RECEIVE ACTIONS:
 //    - `SendPage`: Calls a SnackBar mock. Replace with POST `/transfer`.
@@ -46,6 +31,58 @@ import 'package:qr_flutter/qr_flutter.dart';
 // ============================================================================
 
 final ValueNotifier<bool> darkModeNotifier = ValueNotifier(false);
+final ValueNotifier<bool> isBanglaNotifier = ValueNotifier(false);
+
+// --- Localization Helpers ---
+String tr(String en, String bn) => isBanglaNotifier.value ? bn : en;
+
+String toBanglaDigits(String input) {
+  if (!isBanglaNotifier.value) return input;
+  const en = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9'];
+  const bn = ['০', '১', '২', '৩', '৪', '৫', '৬', '৭', '৮', '৯'];
+  String result = input;
+  for (int i = 0; i < 10; i++) {
+    result = result.replaceAll(en[i], bn[i]);
+  }
+  return result;
+}
+
+String translateTxTitle(String title) {
+  if (!isBanglaNotifier.value) return title;
+  final map = {
+    'Shopping at Daraz': 'দারাজে কেনাকাটা',
+    'DIU Transport': 'ডিআইইউ ট্রান্সপোর্ট',
+    'Send Money to Raiyan': 'রায়ানকে টাকা পাঠানো',
+    'Freelance Payment': 'ফ্রিল্যান্স পেমেন্ট',
+    'Grocery Store': 'মুদি দোকান',
+    'Coffee Shop': 'কফি শপ',
+    'Electricity Bill': 'বিদ্যুৎ বিল',
+    'Salary Deposit': 'বেতন জমা',
+    'Netflix': 'নেটফ্লিক্স',
+    'Restaurant': 'রেস্টুরেন্ট',
+    'Online Shopping': 'অনলাইন কেনাকাটা',
+    'Gym Membership': 'জিম মেম্বারশিপ',
+  };
+  return map[title] ?? title;
+}
+
+String translateTxSubtitle(String subtitle) {
+  if (!isBanglaNotifier.value) return subtitle;
+  final map = {
+    'Payment': 'পেমেন্ট',
+    'Income': 'আয়',
+    'Bills': 'বিল',
+    'Subscription': 'সাবস্ক্রিপশন',
+  };
+  return map[subtitle] ?? subtitle;
+}
+
+String translateTxTime(String time) {
+  if (!isBanglaNotifier.value) return time;
+  String t = toBanglaDigits(time);
+  return t.replaceAll('am', 'AM').replaceAll('pm', 'PM');
+}
+// ----------------------------
 
 class UserState {
   final String name;
@@ -154,12 +191,12 @@ String formatMoney(double v, {bool showSign = false}) {
   } else if (showSign && v > 0) {
     sign = '+';
   }
-  return '$sign\$${buf.toString()}.${parts[1]}';
+  return toBanglaDigits('$sign৳${buf.toString()}.${parts[1]}');
 }
 
 String _formatK(double v) {
-  if (v >= 1000) return '${(v / 1000).toStringAsFixed(1)}k';
-  return v.toStringAsFixed(0);
+  String raw = v >= 1000 ? '${(v / 1000).toStringAsFixed(1)}k' : v.toStringAsFixed(0);
+  return toBanglaDigits(raw);
 }
 
 bool _isDark(BuildContext c) => Theme.of(c).brightness == Brightness.dark;
@@ -221,6 +258,10 @@ Future<void> _shareInvoice(
   final dateStr =
       '${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year}';
   final userName = userNotifier.value.name;
+  
+  final safeAmount = amount.replaceAll('৳', 'BDT ');
+  final safeTitle = translateTxTitle(title);
+  final safeSubtitle = translateTxSubtitle(subtitle);
 
   doc.addPage(
     pw.Page(
@@ -282,15 +323,15 @@ Future<void> _shareInvoice(
                     pw.Column(
                       crossAxisAlignment: pw.CrossAxisAlignment.start,
                       children: [
-                        pw.Text(title,
+                        pw.Text(safeTitle,
                             style: const pw.TextStyle(fontSize: 12)),
                         pw.SizedBox(height: 2),
-                        pw.Text(subtitle,
+                        pw.Text(safeSubtitle,
                             style: const pw.TextStyle(
                                 fontSize: 10, color: PdfColors.grey700)),
                       ],
                     ),
-                    pw.Text(amount,
+                    pw.Text(safeAmount,
                         style: pw.TextStyle(
                             fontSize: 12, fontWeight: pw.FontWeight.bold)),
                   ],
@@ -311,7 +352,7 @@ Future<void> _shareInvoice(
                 pw.Text('TOTAL',
                     style: pw.TextStyle(
                         fontWeight: pw.FontWeight.bold, fontSize: 13)),
-                pw.Text(amount,
+                pw.Text(safeAmount,
                     style: pw.TextStyle(
                         fontWeight: pw.FontWeight.bold, fontSize: 18)),
               ],
@@ -340,7 +381,7 @@ Future<void> _shareInvoice(
 
   if (context.mounted) {
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Invoice ready to save or share')),
+      SnackBar(content: Text(tr('Invoice ready to save or share', 'ইনভয়েস তৈরি হয়েছে'))),
     );
   }
 }
@@ -386,33 +427,50 @@ class HomeShell extends StatefulWidget {
 class _HomeShellState extends State<HomeShell> {
   int _index = 0;
 
-  static const List<Widget> _pages = [
-    HomePage(),
-    SendPage(),
-    ReceivePage(),
-    ProfilePage(),
-  ];
-
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: IndexedStack(index: _index, children: _pages),
-      bottomNavigationBar: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
-        currentIndex: _index,
-        onTap: (i) => setState(() => _index = i),
-        selectedItemColor:
-            _isDark(context) ? const Color(0xFFFFB300) : Colors.black,
-        unselectedItemColor: _isDark(context) ? Colors.grey[500] : Colors.grey,
-        backgroundColor: _surfaceCard(context),
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(icon: Icon(Icons.north_east), label: 'Send'),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.south_west), label: 'Receive'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
-        ],
-      ),
+    return ValueListenableBuilder<bool>(
+      valueListenable: isBanglaNotifier,
+      builder: (context, isBangla, _) {
+        final pages = [
+          HomePage(),
+          SendPage(),
+          ReceivePage(),
+          ProfilePage(),
+        ];
+
+        return Scaffold(
+          body: IndexedStack(index: _index, children: pages),
+          bottomNavigationBar: BottomNavigationBar(
+            type: BottomNavigationBarType.fixed,
+            currentIndex: _index,
+            onTap: (i) => setState(() => _index = i),
+            selectedItemColor:
+                _isDark(context) ? const Color(0xFFFFB300) : Colors.black,
+            unselectedItemColor:
+                _isDark(context) ? Colors.grey[500] : Colors.grey,
+            backgroundColor: _surfaceCard(context),
+            items: [
+              BottomNavigationBarItem(
+                icon: const Icon(Icons.home),
+                label: tr('Home', 'হোম'),
+              ),
+              BottomNavigationBarItem(
+                icon: const Icon(Icons.north_east),
+                label: tr('Send', 'পাঠান'),
+              ),
+              BottomNavigationBarItem(
+                icon: const Icon(Icons.south_west),
+                label: tr('Receive', 'গ্রহণ'),
+              ),
+              BottomNavigationBarItem(
+                icon: const Icon(Icons.person),
+                label: tr('Profile', 'প্রোফাইল'),
+              ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -423,8 +481,6 @@ class HomePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final recent = allTransactions.take(4).toList();
-    
-    // Compute these once per build to pass to painter and avoid redundant loops
     final receivedData = _monthlyReceived();
     final sentData = _monthlySent();
 
@@ -445,9 +501,8 @@ class HomePage extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const _Header(),
+              _Header(),
               const SizedBox(height: 16),
-              
               Expanded(
                 child: Container(
                   padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
@@ -474,7 +529,7 @@ class HomePage extends StatelessWidget {
                         children: [
                           Expanded(
                             child: Text(
-                              'Transaction Overview',
+                              tr('Transaction Overview', 'লেনদেনের সারসংক্ষেপ'),
                               style: TextStyle(
                                 color: _onHero(context),
                                 fontSize: 15,
@@ -482,18 +537,18 @@ class HomePage extends StatelessWidget {
                               ),
                             ),
                           ),
-                          const Row(
+                          Row(
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               _LegendDot(
                                 color: kReceivedColor,
-                                label: 'Received',
+                                label: tr('Received', 'প্রাপ্ত'),
                                 isDarkText: false,
                               ),
-                              SizedBox(width: 12),
+                              const SizedBox(width: 12),
                               _LegendDot(
                                 color: kSentColor,
-                                label: 'Sent',
+                                label: tr('Sent', 'প্রেরিত'),
                                 isDarkText: false,
                               ),
                             ],
@@ -510,6 +565,7 @@ class HomePage extends StatelessWidget {
                               labelColor: _onHeroMuted(context),
                               received: receivedData,
                               sent: sentData,
+                              isBangla: isBanglaNotifier.value,
                             ),
                           ),
                         ),
@@ -519,14 +575,13 @@ class HomePage extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 20),
-              
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    'Recent Transaction',
-                    style:
-                        TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  Text(
+                    tr('Recent Transaction', 'সাম্প্রতিক লেনদেন'),
+                    style: const TextStyle(
+                        fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   GestureDetector(
                     onTap: () => Navigator.push(
@@ -536,7 +591,7 @@ class HomePage extends StatelessWidget {
                       ),
                     ),
                     child: Text(
-                      'See All',
+                      tr('See All', 'সব দেখুন'),
                       style: TextStyle(
                         color: _subtle(context),
                         fontSize: 14,
@@ -547,7 +602,6 @@ class HomePage extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 12),
-              
               for (int i = 0; i < recent.length; i++) ...[
                 _TransactionTile(tx: recent[i]),
                 if (i != recent.length - 1) const SizedBox(height: 10),
@@ -599,58 +653,63 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<UserState>(
-      valueListenable: userNotifier,
-      builder: (context, user, _) {
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            CircleAvatar(
-              radius: 24,
-              backgroundImage: _avatarProvider(user),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Welcome Back',
-                    style: TextStyle(color: _muted(context), fontSize: 12),
-                  ),
-                  Text(
-                    user.name,
-                    style: const TextStyle(
-                      fontWeight: FontWeight.bold,
-                      fontSize: 16,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
+    return ValueListenableBuilder<bool>(
+      valueListenable: isBanglaNotifier,
+      builder: (context, isBangla, _) {
+        return ValueListenableBuilder<UserState>(
+          valueListenable: userNotifier,
+          builder: (context, user, _) {
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'Total Balance',
-                  style: TextStyle(
-                    color: _muted(context),
-                    fontSize: 11,
-                    fontWeight: FontWeight.w500,
+                CircleAvatar(
+                  radius: 24,
+                  backgroundImage: _avatarProvider(user),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        tr('Welcome Back', 'স্বাগতম'),
+                        style: TextStyle(color: _muted(context), fontSize: 12),
+                      ),
+                      Text(
+                        user.name,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 2),
-                Text(
-                  formatMoney(totalBalance),
-                  style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                    letterSpacing: -0.5,
-                  ),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    Text(
+                      tr('Total Balance', 'মোট ব্যালেন্স'),
+                      style: TextStyle(
+                        color: _muted(context),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      formatMoney(totalBalance),
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: -0.5,
+                      ),
+                    ),
+                  ],
                 ),
               ],
-            ),
-          ],
+            );
+          },
         );
       },
     );
@@ -666,6 +725,10 @@ class _TransactionTile extends StatelessWidget {
     final isIncome = tx.amount > 0;
     final amountStr = formatMoney(tx.amount, showSign: true);
     final amountColor = isIncome ? const Color(0xFF16A34A) : null;
+
+    final displayTitle = translateTxTitle(tx.title);
+    final displaySubtitle = translateTxSubtitle(tx.subtitle);
+    final displayTime = translateTxTime(tx.time);
 
     return Material(
       color: Colors.transparent,
@@ -705,7 +768,7 @@ class _TransactionTile extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      tx.title,
+                      displayTitle,
                       style: const TextStyle(
                         fontWeight: FontWeight.w600,
                         fontSize: 14,
@@ -713,7 +776,7 @@ class _TransactionTile extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      tx.subtitle,
+                      displaySubtitle,
                       style:
                           TextStyle(color: _subtle(context), fontSize: 12),
                     ),
@@ -733,7 +796,7 @@ class _TransactionTile extends StatelessWidget {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    tx.time,
+                    displayTime,
                     style: TextStyle(color: _subtle(context), fontSize: 12),
                   ),
                 ],
@@ -757,12 +820,14 @@ class _ChartPainter extends CustomPainter {
   final Color labelColor;
   final List<double> received;
   final List<double> sent;
+  final bool isBangla;
 
   _ChartPainter({
     required this.gridColor,
     required this.labelColor,
     required this.received,
     required this.sent,
+    required this.isBangla,
   });
 
   @override
@@ -798,9 +863,20 @@ class _ChartPainter extends CustomPainter {
       tp.paint(canvas, Offset(left - tp.width - 6, y - tp.height / 2));
     }
 
-    final months = ['May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    final monthsEn = ['May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    final monthsBn = [
+      'মে',
+      'জুন',
+      'জুলাই',
+      'আগস্ট',
+      'সেপ্ট',
+      'অক্টো',
+      'নভে',
+      'ডিসে'
+    ];
+    final months = isBangla ? monthsBn : monthsEn;
+
     for (int i = 0; i < received.length; i++) {
-      // Guard against division by zero if there is only 1 data point
       final dx = received.length > 1 ? (i / (received.length - 1)) : 0.5;
       final x = left + dx * chartW;
 
@@ -872,20 +948,30 @@ class _ChartPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(covariant _ChartPainter old) =>
+      old.isBangla != isBangla ||
       old.gridColor != gridColor ||
       old.labelColor != labelColor ||
-      // Using listEquals prevents massive performance drops from repainting the chart endlessly
       !listEquals(old.received, received) ||
       !listEquals(old.sent, sent);
 }
 
-class SendPage extends StatelessWidget {
+class SendPage extends StatefulWidget {
   const SendPage({super.key});
+  @override
+  State<SendPage> createState() => _SendPageState();
+}
+
+class _SendPageState extends State<SendPage> {
+  final codeController = TextEditingController();
+
+  @override
+  void dispose() {
+    codeController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final codeController = TextEditingController();
-
     return Container(
       width: double.infinity,
       height: double.infinity,
@@ -903,19 +989,23 @@ class SendPage extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Send Money',
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+              Text(
+                tr('Send Money', 'টাকা পাঠান'),
+                style:
+                    const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 4),
               Text(
-                'Scan a QR code or enter a payment code',
+                tr('Scan a QR code or enter a payment code',
+                    'কিউআর কোড স্ক্যান করুন বা পেমেন্ট কোড দিন'),
                 style: TextStyle(color: _muted(context), fontSize: 14),
               ),
               const SizedBox(height: 28),
               GestureDetector(
                 onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('QR scanner coming soon')),
+                  SnackBar(
+                      content: Text(
+                          tr('QR scanner coming soon', 'কিউআর স্ক্যানার শীঘ্রই আসছে'))),
                 ),
                 child: Container(
                   width: double.infinity,
@@ -947,7 +1037,7 @@ class SendPage extends StatelessWidget {
                                 size: 64, color: _onHeroMuted(context)),
                             const SizedBox(height: 12),
                             Text(
-                              'Tap to scan',
+                              tr('Tap to scan', 'স্ক্যান করতে ট্যাপ করুন'),
                               style: TextStyle(
                                 color: _onHero(context),
                                 fontSize: 14,
@@ -969,7 +1059,7 @@ class SendPage extends StatelessWidget {
                           color: _subtle(context).withValues(alpha: 0.4))),
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: Text('or',
+                    child: Text(tr('or', 'অথবা'),
                         style: TextStyle(
                             color: _subtle(context), fontSize: 13)),
                   ),
@@ -979,33 +1069,58 @@ class SendPage extends StatelessWidget {
                 ],
               ),
               const SizedBox(height: 24),
-              const Text(
-                'Enter code',
-                style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: codeController,
-                textCapitalization: TextCapitalization.characters,
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 2,
-                ),
-                decoration: InputDecoration(
-                  hintText: 'e.g. ABC-123-XYZ',
-                  hintStyle:
-                      TextStyle(color: _subtle(context), letterSpacing: 1),
-                  filled: true,
-                  fillColor: _surfaceCard(context),
-                  contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 18),
-                  border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(16),
-                    borderSide: BorderSide.none,
+              
+              // Styled to match the Receive Page Code Box
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: _surfaceCard(context),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: _isDark(context)
+                        ? Colors.white10
+                        : Colors.black.withValues(alpha: 0.05),
                   ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: _shadow(context),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      tr('Enter code', 'কোড লিখুন'),
+                      style: TextStyle(
+                          color: _subtle(context), fontSize: 12),
+                    ),
+                    const SizedBox(height: 4),
+                    TextField(
+                      controller: codeController,
+                      textCapitalization: TextCapitalization.characters,
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 2,
+                      ),
+                      decoration: InputDecoration(
+                        hintText: tr('e.g. ABC-123-XYZ', 'উদাঃ ABC-123-XYZ'),
+                        hintStyle: TextStyle(
+                            color: _subtle(context).withValues(alpha: 0.5), 
+                            letterSpacing: 1,
+                            fontWeight: FontWeight.normal),
+                        border: InputBorder.none,
+                        isDense: true,
+                        contentPadding: EdgeInsets.zero,
+                      ),
+                    ),
+                  ],
                 ),
               ),
+              
               const SizedBox(height: 30),
               SizedBox(
                 width: double.infinity,
@@ -1015,12 +1130,16 @@ class SendPage extends StatelessWidget {
                     final code = codeController.text.trim();
                     if (code.isEmpty) {
                       ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Enter a code first')),
+                        SnackBar(
+                            content: Text(tr('Enter a code first',
+                                'প্রথমে একটি কোড লিখুন'))),
                       );
                       return;
                     }
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Looking up code: $code')),
+                      SnackBar(
+                          content: Text(tr('Looking up code: $code',
+                              'কোড খোঁজা হচ্ছে: $code'))),
                     );
                   },
                   style: ElevatedButton.styleFrom(
@@ -1036,10 +1155,10 @@ class SendPage extends StatelessWidget {
                     ),
                     elevation: 0,
                   ),
-                  child: const Text(
-                    'Continue',
-                    style:
-                        TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  child: Text(
+                    tr('Continue', 'চালিয়ে যান'),
+                    style: const TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.w600),
                   ),
                 ),
               ),
@@ -1081,8 +1200,11 @@ class _ScannerCorners extends StatelessWidget {
           ),
         );
 
-    return const Stack(children: [
-      // Note: Cannot be const because of the parameters, but this entire widget is lightweight
+    return Stack(children: [
+      corner(top: true, left: true),
+      corner(top: true, left: false),
+      corner(top: false, left: true),
+      corner(top: false, left: false),
     ]);
   }
 }
@@ -1135,7 +1257,9 @@ class _ReceivePageState extends State<ReceivePage> {
   void _copyCode() {
     Clipboard.setData(const ClipboardData(text: _paymentCode));
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Payment code copied')),
+      SnackBar(
+          content: Text(
+              tr('Payment code copied', 'পেমেন্ট কোড কপি করা হয়েছে'))),
     );
   }
 
@@ -1158,13 +1282,15 @@ class _ReceivePageState extends State<ReceivePage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text(
-                'Receive Money',
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+              Text(
+                tr('Receive Money', 'টাকা গ্রহণ করুন'),
+                style:
+                    const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
               ),
               const SizedBox(height: 4),
               Text(
-                'Scan the QR or share your payment code',
+                tr('Scan the QR or share your payment code',
+                    'কিউআর স্ক্যান করুন বা পেমেন্ট কোড শেয়ার করুন'),
                 style: TextStyle(color: _muted(context), fontSize: 14),
               ),
               const SizedBox(height: 28),
@@ -1212,7 +1338,7 @@ class _ReceivePageState extends State<ReceivePage> {
                     ),
                     const SizedBox(height: 20),
                     Text(
-                      'Scan to pay me',
+                      tr('Scan to pay me', 'পেমেন্ট করতে স্ক্যান করুন'),
                       style: TextStyle(
                           color: _onHeroMuted(context), fontSize: 13),
                     ),
@@ -1245,13 +1371,13 @@ class _ReceivePageState extends State<ReceivePage> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            'Payment code',
+                            tr('Payment code', 'পেমেন্ট কোড'),
                             style: TextStyle(
                                 color: _subtle(context), fontSize: 12),
                           ),
                           const SizedBox(height: 4),
                           const Text(
-                            _paymentCode,
+                            _paymentCode, // Kept in English!
                             style: TextStyle(
                               fontSize: 18,
                               fontWeight: FontWeight.bold,
@@ -1264,7 +1390,7 @@ class _ReceivePageState extends State<ReceivePage> {
                     IconButton(
                       onPressed: _copyCode,
                       icon: const Icon(Icons.copy_rounded),
-                      tooltip: 'Copy',
+                      tooltip: tr('Copy', 'কপি'),
                     ),
                   ],
                 ),
@@ -1274,14 +1400,15 @@ class _ReceivePageState extends State<ReceivePage> {
                 width: double.infinity,
                 height: 56,
                 child: ElevatedButton.icon(
-                  onPressed: () => ScaffoldMessenger.of(context)
-                      .showSnackBar(const SnackBar(
-                          content: Text('Share sheet coming soon'))),
+                  onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                          content: Text(tr('Share sheet coming soon',
+                              'শেয়ার শীঘ্রই আসছে')))),
                   icon: const Icon(Icons.share_outlined),
-                  label: const Text(
-                    'Share payment code',
-                    style:
-                        TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                  label: Text(
+                    tr('Share payment code', 'পেমেন্ট কোড শেয়ার করুন'),
+                    style: const TextStyle(
+                        fontSize: 16, fontWeight: FontWeight.w600),
                   ),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _buttonBg(context),
@@ -1323,7 +1450,7 @@ class _ProfilePageState extends State<ProfilePage> {
     if (picked != null) {
       userNotifier.value =
           userNotifier.value.copyWith(avatarPath: picked.path);
-      _toast('Profile photo updated');
+      _toast(tr('Profile photo updated', 'প্রোফাইল ছবি আপডেট হয়েছে'));
     }
   }
 
@@ -1332,20 +1459,20 @@ class _ProfilePageState extends State<ProfilePage> {
     final result = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Change name'),
+        title: Text(tr('Change name', 'নাম পরিবর্তন করুন')),
         content: TextField(
           controller: ctrl,
           autofocus: true,
-          decoration: const InputDecoration(labelText: 'Name'),
+          decoration: InputDecoration(labelText: tr('Name', 'নাম')),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
+            child: Text(tr('Cancel', 'বাতিল')),
           ),
           TextButton(
             onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
-            child: const Text('Save'),
+            child: Text(tr('Save', 'সংরক্ষণ')),
           ),
         ],
       ),
@@ -1354,7 +1481,7 @@ class _ProfilePageState extends State<ProfilePage> {
         result.isNotEmpty &&
         result != userNotifier.value.name) {
       userNotifier.value = userNotifier.value.copyWith(name: result);
-      _toast('Name updated');
+      _toast(tr('Name updated', 'নাম আপডেট হয়েছে'));
     }
   }
 
@@ -1369,7 +1496,7 @@ class _ProfilePageState extends State<ProfilePage> {
       context: context,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setSt) => AlertDialog(
-          title: const Text('Change password'),
+          title: Text(tr('Change password', 'পাসওয়ার্ড পরিবর্তন করুন')),
           content: SingleChildScrollView(
             child: Column(
               mainAxisSize: MainAxisSize.min,
@@ -1377,22 +1504,24 @@ class _ProfilePageState extends State<ProfilePage> {
                 TextField(
                   controller: current,
                   obscureText: obscure,
-                  decoration:
-                      const InputDecoration(labelText: 'Current password'),
+                  decoration: InputDecoration(
+                      labelText:
+                          tr('Current password', 'বর্তমান পাসওয়ার্ড')),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: next,
                   obscureText: obscure,
-                  decoration:
-                      const InputDecoration(labelText: 'New password'),
+                  decoration: InputDecoration(
+                      labelText: tr('New password', 'নতুন পাসওয়ার্ড')),
                 ),
                 const SizedBox(height: 12),
                 TextField(
                   controller: confirm,
                   obscureText: obscure,
-                  decoration: const InputDecoration(
-                      labelText: 'Confirm new password'),
+                  decoration: InputDecoration(
+                      labelText: tr('Confirm new password',
+                          'নতুন পাসওয়ার্ড নিশ্চিত করুন')),
                 ),
                 const SizedBox(height: 12),
                 Row(
@@ -1401,7 +1530,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       value: !obscure,
                       onChanged: (v) => setSt(() => obscure = !(v ?? false)),
                     ),
-                    const Text('Show passwords'),
+                    Text(tr('Show passwords', 'পাসওয়ার্ড দেখান')),
                   ],
                 ),
                 if (error != null)
@@ -1419,26 +1548,30 @@ class _ProfilePageState extends State<ProfilePage> {
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel'),
+              child: Text(tr('Cancel', 'বাতিল')),
             ),
             TextButton(
               onPressed: () {
                 if (current.text.isEmpty) {
-                  setSt(() => error = 'Enter your current password');
+                  setSt(() => error =
+                      tr('Enter your current password', 'বর্তমান পাসওয়ার্ড দিন'));
                   return;
                 }
                 if (next.text.length < 6) {
-                  setSt(() => error = 'New password must be 6+ characters');
+                  setSt(() => error = tr(
+                      'New password must be 6+ characters',
+                      'নতুন পাসওয়ার্ড ৬+ অক্ষরের হতে হবে'));
                   return;
                 }
                 if (next.text != confirm.text) {
-                  setSt(() => error = 'Passwords do not match');
+                  setSt(() => error =
+                      tr('Passwords do not match', 'পাসওয়ার্ড মিলছে না'));
                   return;
                 }
                 Navigator.pop(ctx);
-                _toast('Password updated');
+                _toast(tr('Password updated', 'পাসওয়ার্ড আপডেট হয়েছে'));
               },
-              child: const Text('Save'),
+              child: Text(tr('Save', 'সংরক্ষণ')),
             ),
           ],
         ),
@@ -1469,12 +1602,13 @@ class _ProfilePageState extends State<ProfilePage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               const SizedBox(height: 8),
-              const Text(
-                'Profile',
-                style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
+              Text(
+                tr('Profile', 'প্রোফাইল'),
+                style:
+                    const TextStyle(fontSize: 28, fontWeight: FontWeight.bold),
               ),
               Text(
-                'Manage your account',
+                tr('Manage your account', 'আপনার অ্যাকাউন্ট পরিচালনা করুন'),
                 style: TextStyle(color: muted, fontSize: 14),
               ),
               const SizedBox(height: 24),
@@ -1536,7 +1670,8 @@ class _ProfilePageState extends State<ProfilePage> {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        'Tap photo to change',
+                        tr('Tap photo to change',
+                            'পরিবর্তন করতে ফটোতে ট্যাপ করুন'),
                         style: TextStyle(color: muted, fontSize: 12),
                       ),
                     ],
@@ -1565,14 +1700,16 @@ class _ProfilePageState extends State<ProfilePage> {
                   children: [
                     ListTile(
                       leading: const Icon(Icons.person_outline),
-                      title: const Text('Change name'),
+                      title:
+                          Text(tr('Change name', 'নাম পরিবর্তন করুন')),
                       trailing: const Icon(Icons.chevron_right),
                       onTap: _editName,
                     ),
                     const Divider(height: 1, indent: 16, endIndent: 16),
                     ListTile(
                       leading: const Icon(Icons.lock_outline),
-                      title: const Text('Change password'),
+                      title: Text(
+                          tr('Change password', 'পাসওয়ার্ড পরিবর্তন করুন')),
                       trailing: const Icon(Icons.chevron_right),
                       onTap: _editPassword,
                     ),
@@ -1582,38 +1719,51 @@ class _ProfilePageState extends State<ProfilePage> {
                       builder: (context, isDark, _) => SwitchListTile(
                         secondary: Icon(
                             isDark ? Icons.dark_mode : Icons.light_mode),
-                        title: const Text('Dark mode'),
+                        title: Text(tr('Dark mode', 'ডার্ক মোড')),
                         value: isDark,
                         onChanged: (v) => darkModeNotifier.value = v,
+                      ),
+                    ),
+                    const Divider(height: 1, indent: 16, endIndent: 16),
+                    ValueListenableBuilder<bool>(
+                      valueListenable: isBanglaNotifier,
+                      builder: (context, isBangla, _) => SwitchListTile(
+                        secondary: const Icon(Icons.language),
+                        title: Text(tr('Bangla Language', 'বাংলা ভাষা')),
+                        value: isBangla,
+                        onChanged: (v) => isBanglaNotifier.value = v,
                       ),
                     ),
                     const Divider(height: 1, indent: 16, endIndent: 16),
                     ListTile(
                       leading:
                           const Icon(Icons.logout, color: Colors.redAccent),
-                      title: const Text(
-                        'Log out',
-                        style: TextStyle(color: Colors.redAccent),
+                      title: Text(
+                        tr('Log out', 'লগ আউট'),
+                        style: const TextStyle(color: Colors.redAccent),
                       ),
                       onTap: () => showDialog(
                         context: context,
                         builder: (ctx) => AlertDialog(
-                          title: const Text('Log out?'),
-                          content: const Text(
-                              'Are you sure you want to log out?'),
+                          title: Text(tr('Log out?', 'লগ আউট করবেন?')),
+                          content: Text(tr(
+                              'Are you sure you want to log out?',
+                              'আপনি কি নিশ্চিত যে আপনি লগ আউট করতে চান?')),
                           actions: [
                             TextButton(
                               onPressed: () => Navigator.pop(ctx),
-                              child: const Text('Cancel'),
+                              child: Text(tr('Cancel', 'বাতিল')),
                             ),
                             TextButton(
                               onPressed: () {
                                 Navigator.pop(ctx);
-                                _toast('Logged out (frontend only)');
+                                _toast(tr('Logged out (frontend only)',
+                                    'লগ আউট হয়েছে (ফ্রন্টএন্ড)'));
                               },
-                              child: const Text(
-                                'Log out',
-                                style: TextStyle(color: Colors.redAccent),
+                              child: Text(
+                                tr('Log out', 'লগ আউট'),
+                                style: const TextStyle(
+                                    color: Colors.redAccent),
                               ),
                             ),
                           ],
@@ -1642,34 +1792,39 @@ class TransactionsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('All Transactions'),
-        backgroundColor: _surfaceCard(context),
-        foregroundColor: _onHero(context),
-        elevation: 0,
-        scrolledUnderElevation: 0,
-      ),
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [_pageTop(context), _pageBottom(context)],
+    return ValueListenableBuilder<bool>(
+      valueListenable: isBanglaNotifier,
+      builder: (context, _, __) {
+        return Scaffold(
+          appBar: AppBar(
+            title: Text(tr('All Transactions', 'সব লেনদেন')),
+            backgroundColor: _surfaceCard(context),
+            foregroundColor: _onHero(context),
+            elevation: 0,
+            scrolledUnderElevation: 0,
           ),
-        ),
-        child: SafeArea(
-          child: ListView.separated(
-            padding: const EdgeInsets.all(20),
-            itemCount: allTransactions.length,
-            separatorBuilder: (_, __) => const SizedBox(height: 12),
-            itemBuilder: (context, i) =>
-                _TransactionTile(tx: allTransactions[i]),
+          body: Container(
+            width: double.infinity,
+            height: double.infinity,
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [_pageTop(context), _pageBottom(context)],
+              ),
+            ),
+            child: SafeArea(
+              child: ListView.separated(
+                padding: const EdgeInsets.all(20),
+                itemCount: allTransactions.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 12),
+                itemBuilder: (context, i) =>
+                    _TransactionTile(tx: allTransactions[i]),
+              ),
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
