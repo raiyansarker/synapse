@@ -1,7 +1,7 @@
-name: mobile
-description: "A new Flutter project."
+name: synapse
+description: "Synapse Wallet"
 publish_to: 'none'
-version: 0.1.0+1
+version: 1.0.0+1
 
 environment:
   sdk: ^3.13.5
@@ -14,6 +14,9 @@ dependencies:
   pdf: ^3.10.8
   printing: ^5.11.0
   mobile_scanner: ^5.0.0
+  share_plus: ^13.3.1
+  local_auth: ^2.1.8
+  flutter_svg: ^2.0.10+1
 
 dependency_overrides:
   barcode: ^2.2.0
@@ -23,6 +26,19 @@ dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.13.1
 
 flutter:
   uses-material-design: true
+  
+  assets:
+    - assets/images/logo.svg
+    - assets/images/app_icon.png
+
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "assets/images/app_icon.png"
+  min_sdk_android: 21
+  adaptive_icon_background: "#E8F5E9"
+  adaptive_icon_foreground: "assets/images/app_icon.png"
