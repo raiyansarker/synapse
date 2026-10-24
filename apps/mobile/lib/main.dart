@@ -199,19 +199,21 @@ String _formatK(double v) {
   return toBanglaDigits(raw);
 }
 
+// --- Theme Colors ---
 bool _isDark(BuildContext c) => Theme.of(c).brightness == Brightness.dark;
 
+// Modern Bangladesh-inspired gradients (Soft Green to White)
 Color _pageTop(BuildContext c) =>
-    _isDark(c) ? const Color(0xFF121212) : const Color(0xFFF5F2E9);
+    _isDark(c) ? const Color(0xFF0D1A14) : const Color(0xFFE8F5E9);
 
 Color _pageBottom(BuildContext c) =>
-    _isDark(c) ? const Color(0xFF0D0D0D) : const Color(0xFFFAFAFA);
+    _isDark(c) ? const Color(0xFF050A08) : const Color(0xFFF9FBE7);
 
 Color _surfaceCard(BuildContext c) =>
-    _isDark(c) ? const Color(0xFF24252A) : Colors.white;
+    _isDark(c) ? const Color(0xFF142620) : Colors.white;
 
 Color _heroCard(BuildContext c) =>
-    _isDark(c) ? const Color(0xFF2E2F35) : Colors.white;
+    _isDark(c) ? const Color(0xFF1A3029) : Colors.white;
 
 Color _onHero(BuildContext c) =>
     _isDark(c) ? Colors.white : const Color(0xFF1A1A1A);
@@ -223,9 +225,10 @@ Color _onHeroSubtle(BuildContext c) => _isDark(c)
     ? Colors.white.withValues(alpha: 0.1)
     : Colors.black.withValues(alpha: 0.06);
 
+// Buttons: Bangladesh Green in light mode, vibrant green in dark mode
 Color _buttonBg(BuildContext c) =>
-    _isDark(c) ? const Color(0xFF24252A) : Colors.white;
-Color _onButton(BuildContext c) => const Color(0xFFFFB300);
+    _isDark(c) ? const Color(0xFF00A86B) : const Color(0xFF006A4E);
+Color _onButton(BuildContext c) => Colors.white;
 
 Color _muted(BuildContext c) =>
     _isDark(c) ? Colors.grey[400]! : Colors.grey[700]!;
@@ -234,13 +237,14 @@ Color _subtle(BuildContext c) =>
     _isDark(c) ? Colors.grey[500]! : Colors.grey[600]!;
 
 Color _iconBg(BuildContext c) =>
-    _isDark(c) ? const Color(0xFF3A3B40) : const Color(0xFFEEEEEE);
+    _isDark(c) ? const Color(0xFF1F382F) : const Color(0xFFE8F5E9);
 
 Color _shadow(BuildContext c) =>
-    Colors.black.withValues(alpha: _isDark(c) ? 0.4 : 0.08);
+    Colors.black.withValues(alpha: _isDark(c) ? 0.4 : 0.06);
 
-const Color kReceivedColor = Color(0xFFFFB300);
-const Color kSentColor = Color(0xFFFF6B6B);
+// Flag Colors: Green and Red
+const Color kReceivedColor = Color(0xFF006A4E); // BD Green
+const Color kSentColor = Color(0xFFF42A41);     // BD Red
 
 ImageProvider _avatarProvider(UserState u) => u.avatarPath != null
     ? FileImage(File(u.avatarPath!))
@@ -401,15 +405,15 @@ class MainApp extends StatelessWidget {
           themeMode: isDark ? ThemeMode.dark : ThemeMode.light,
           theme: ThemeData(
             useMaterial3: true,
-            colorSchemeSeed: const Color(0xFF24252A),
+            colorSchemeSeed: const Color(0xFF006A4E), // BD Green
             brightness: Brightness.light,
-            scaffoldBackgroundColor: const Color(0xFFF5F2E9),
+            scaffoldBackgroundColor: const Color(0xFFE8F5E9),
           ),
           darkTheme: ThemeData(
             useMaterial3: true,
-            colorSchemeSeed: const Color(0xFFFFB300),
+            colorSchemeSeed: const Color(0xFF00A86B),
             brightness: Brightness.dark,
-            scaffoldBackgroundColor: const Color(0xFF121212),
+            scaffoldBackgroundColor: const Color(0xFF0D1A14),
           ),
           home: const HomeShell(),
         );
@@ -445,10 +449,8 @@ class _HomeShellState extends State<HomeShell> {
             type: BottomNavigationBarType.fixed,
             currentIndex: _index,
             onTap: (i) => setState(() => _index = i),
-            selectedItemColor:
-                _isDark(context) ? const Color(0xFFFFB300) : Colors.black,
-            unselectedItemColor:
-                _isDark(context) ? Colors.grey[500] : Colors.grey,
+            selectedItemColor: _isDark(context) ? const Color(0xFF00A86B) : const Color(0xFF006A4E),
+            unselectedItemColor: _isDark(context) ? Colors.grey[500] : Colors.grey,
             backgroundColor: _surfaceCard(context),
             items: [
               BottomNavigationBarItem(
@@ -512,7 +514,7 @@ class HomePage extends StatelessWidget {
                     border: Border.all(
                       color: _isDark(context)
                           ? Colors.white10
-                          : Colors.black.withValues(alpha: 0.05),
+                          : Colors.black.withValues(alpha: 0.04),
                     ),
                     boxShadow: [
                       BoxShadow(
@@ -749,7 +751,7 @@ class _TransactionTile extends StatelessWidget {
             border: Border.all(
               color: _isDark(context)
                   ? Colors.white10
-                  : Colors.black.withValues(alpha: 0.05),
+                  : Colors.black.withValues(alpha: 0.04),
             ),
           ),
           child: Row(
@@ -1016,7 +1018,7 @@ class _SendPageState extends State<SendPage> {
                     border: Border.all(
                       color: _isDark(context)
                           ? Colors.white10
-                          : Colors.black.withValues(alpha: 0.05),
+                          : Colors.black.withValues(alpha: 0.04),
                     ),
                     boxShadow: [
                       BoxShadow(
@@ -1079,7 +1081,7 @@ class _SendPageState extends State<SendPage> {
                   border: Border.all(
                     color: _isDark(context)
                         ? Colors.white10
-                        : Colors.black.withValues(alpha: 0.05),
+                        : Colors.black.withValues(alpha: 0.04),
                   ),
                   boxShadow: [
                     BoxShadow(
@@ -1145,11 +1147,6 @@ class _SendPageState extends State<SendPage> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _buttonBg(context),
                     foregroundColor: _onButton(context),
-                    side: BorderSide(
-                      color: _isDark(context)
-                          ? Colors.white24
-                          : Colors.black.withValues(alpha: 0.08),
-                    ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(18),
                     ),
@@ -1179,7 +1176,8 @@ class _ScannerCorners extends StatelessWidget {
     const len = 28.0;
     const thick = 3.0;
     const pad = 20.0;
-    const color = Color(0xFFFFB300);
+    // Using BD Green for scanner corners
+    const color = Color(0xFF006A4E);
 
     Widget corner({bool top = true, bool left = true}) => Positioned(
           top: top ? pad : null,
@@ -1303,7 +1301,7 @@ class _ReceivePageState extends State<ReceivePage> {
                   border: Border.all(
                     color: _isDark(context)
                         ? Colors.white10
-                        : Colors.black.withValues(alpha: 0.05),
+                        : Colors.black.withValues(alpha: 0.04),
                   ),
                   boxShadow: [
                     BoxShadow(
@@ -1354,7 +1352,7 @@ class _ReceivePageState extends State<ReceivePage> {
                   border: Border.all(
                     color: _isDark(context)
                         ? Colors.white10
-                        : Colors.black.withValues(alpha: 0.05),
+                        : Colors.black.withValues(alpha: 0.04),
                   ),
                   boxShadow: [
                     BoxShadow(
@@ -1413,11 +1411,6 @@ class _ReceivePageState extends State<ReceivePage> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: _buttonBg(context),
                     foregroundColor: _onButton(context),
-                    side: BorderSide(
-                      color: _isDark(context)
-                          ? Colors.white24
-                          : Colors.black.withValues(alpha: 0.08),
-                    ),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(18),
                     ),
@@ -1623,7 +1616,7 @@ class _ProfilePageState extends State<ProfilePage> {
                     border: Border.all(
                       color: _isDark(context)
                           ? Colors.white10
-                          : Colors.black.withValues(alpha: 0.05),
+                          : Colors.black.withValues(alpha: 0.04),
                     ),
                     boxShadow: [
                       BoxShadow(
@@ -1649,7 +1642,7 @@ class _ProfilePageState extends State<ProfilePage> {
                               child: Container(
                                 padding: const EdgeInsets.all(7),
                                 decoration: const BoxDecoration(
-                                  color: Color(0xFFFFB300),
+                                  color: Color(0xFF006A4E), // BD Green
                                   shape: BoxShape.circle,
                                 ),
                                 child: const Icon(
@@ -1686,7 +1679,7 @@ class _ProfilePageState extends State<ProfilePage> {
                   border: Border.all(
                     color: _isDark(context)
                         ? Colors.white10
-                        : Colors.black.withValues(alpha: 0.05),
+                        : Colors.black.withValues(alpha: 0.04),
                   ),
                   boxShadow: [
                     BoxShadow(
@@ -1721,6 +1714,7 @@ class _ProfilePageState extends State<ProfilePage> {
                             isDark ? Icons.dark_mode : Icons.light_mode),
                         title: Text(tr('Dark mode', 'ডার্ক মোড')),
                         value: isDark,
+                        activeColor: const Color(0xFF006A4E),
                         onChanged: (v) => darkModeNotifier.value = v,
                       ),
                     ),
@@ -1731,16 +1725,17 @@ class _ProfilePageState extends State<ProfilePage> {
                         secondary: const Icon(Icons.language),
                         title: Text(tr('Bangla Language', 'বাংলা ভাষা')),
                         value: isBangla,
+                        activeColor: const Color(0xFF006A4E),
                         onChanged: (v) => isBanglaNotifier.value = v,
                       ),
                     ),
                     const Divider(height: 1, indent: 16, endIndent: 16),
                     ListTile(
                       leading:
-                          const Icon(Icons.logout, color: Colors.redAccent),
+                          const Icon(Icons.logout, color: Color(0xFFF42A41)), // BD Red
                       title: Text(
                         tr('Log out', 'লগ আউট'),
-                        style: const TextStyle(color: Colors.redAccent),
+                        style: const TextStyle(color: Color(0xFFF42A41)),
                       ),
                       onTap: () => showDialog(
                         context: context,
@@ -1763,7 +1758,7 @@ class _ProfilePageState extends State<ProfilePage> {
                               child: Text(
                                 tr('Log out', 'লগ আউট'),
                                 style: const TextStyle(
-                                    color: Colors.redAccent),
+                                    color: Color(0xFFF42A41)),
                               ),
                             ),
                           ],
