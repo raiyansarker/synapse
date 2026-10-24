@@ -17,6 +17,7 @@ dependencies:
   share_plus: ^13.3.1
   local_auth: ^2.1.8
   flutter_svg: ^2.0.10+1
+  shared_preferences: ^2.2.2
 
 dependency_overrides:
   barcode: ^2.2.0

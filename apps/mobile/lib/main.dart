@@ -10,6 +10,8 @@ import 'package:printing/printing.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:flutter_svg/flutter_svg.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
 
 // ============================================================================
 // BACKEND DEVELOPER INTEGRATION GUIDE
@@ -17,27 +19,19 @@ import 'package:flutter_svg/flutter_svg.dart';
 // 1. AUTHENTICATION (Bank Login):
 //    - The user logs in using: Bank Name, Account Name, Bank ID.
 //    - API Endpoint required: POST `/auth/login`
-//      Payload: { "bankName": "Islami Bank", "accountName": "Niggustak", "bankId": "123456789" }
-//      Response: { "token": "jwt_token", "user": { "id": "1", "name": "Niggustak", "bank": "..." } }
-//    - If the Bank ID does not exist in the banking API, return 404.
+//    - Response: { "token": "jwt_token", "user": { "id": "1", "name": "Niggustak", "bank": "..." } }
 //
 // 2. BIOMETRICS:
-//    - The frontend handles biometrics locally via `local_auth`.
-//    - For high-security transactions (Send Money), the backend should issue a 
-//      short-lived "biometric_token" after a successful local auth, or use device binding.
+//    - Biometrics are handled locally. If `isBiometricEnabled` is true, a valid 
+//      biometric scan is required before sending money or auto-logging in.
 //
 // 3. SEND MONEY (Bank Check & Transfer):
-//    - Before showing the amount, the app asks the backend: GET `/bank/verify-code?code={code}`
-//      If valid, it returns the recipient's name.
+//    - The QR scanner extracts the `code` parameter from the URI.
 //    - To send money: POST `/transfer`
 //      Payload: { "recipientCode": "...", "amount": 500, "biometricVerified": true }
 //
 // 4. TRANSACTIONS & CHART:
-//    - Replace `allTransactions` and `_monthlyReceived/Sent` with:
-//      GET `/transactions` and GET `/analytics/cashflow`
-//
-// NOTE FOR ANDROID: To make biometrics work on Android, you must change
-// `MainActivity.kt` to extend `FlutterFragmentActivity()` instead of `FlutterActivity()`.
+//    - Replace `allTransactions` with GET `/transactions`.
 // ============================================================================
 
 final ValueNotifier<bool> darkModeNotifier = ValueNotifier(false);
@@ -142,42 +136,24 @@ class Tx {
 }
 
 final List<Tx> allTransactions = [
-  Tx('Shopping at Daraz', 'Payment', -248.59, '08:43 pm',
-      DateTime(2025, 12, 15, 20, 43), Icons.shopping_bag_outlined),
-  Tx('DIU Transport', 'Payment', -18.00, '08:43 pm',
-      DateTime(2025, 12, 14, 20, 43), Icons.directions_car_outlined),
-  Tx('Send Money to Raiyan', 'Payment', -145.98, '08:43 pm',
-      DateTime(2025, 12, 12, 20, 43), Icons.send_outlined),
-  Tx('Freelance Payment', 'Income', 850.00, '10:20 am',
-      DateTime(2025, 12, 10, 10, 20), Icons.payments_outlined),
-  Tx('Grocery Store', 'Payment', -67.40, '07:12 pm',
-      DateTime(2025, 12, 5, 19, 12), Icons.local_grocery_store_outlined),
-  Tx('Coffee Shop', 'Payment', -8.75, '10:05 am',
-      DateTime(2025, 11, 20, 10, 5), Icons.local_cafe_outlined),
-  Tx('Electricity Bill', 'Bills', -42.10, '11:30 am',
-      DateTime(2025, 11, 5, 11, 30), Icons.bolt_outlined),
-  Tx('Salary Deposit', 'Income', 3200.00, '09:15 am',
-      DateTime(2025, 11, 1, 9, 15), Icons.work_outline),
-  Tx('Netflix', 'Subscription', -15.99, '01:00 am',
-      DateTime(2025, 10, 2, 1, 0), Icons.movie_outlined),
-  Tx('Salary Deposit', 'Income', 3200.00, '09:15 am',
-      DateTime(2025, 10, 1, 9, 15), Icons.work_outline),
-  Tx('Restaurant', 'Payment', -84.20, '08:30 pm',
-      DateTime(2025, 9, 15, 20, 30), Icons.restaurant_outlined),
-  Tx('Salary Deposit', 'Income', 3200.00, '09:15 am',
-      DateTime(2025, 9, 1, 9, 15), Icons.work_outline),
-  Tx('Online Shopping', 'Payment', -120.00, '03:00 pm',
-      DateTime(2025, 8, 12, 15, 0), Icons.shopping_cart_outlined),
-  Tx('Salary Deposit', 'Income', 3200.00, '09:15 am',
-      DateTime(2025, 8, 1, 9, 15), Icons.work_outline),
-  Tx('Salary Deposit', 'Income', 3200.00, '09:15 am',
-      DateTime(2025, 7, 1, 9, 15), Icons.work_outline),
-  Tx('Gym Membership', 'Bills', -50.00, '10:00 am',
-      DateTime(2025, 6, 5, 10, 0), Icons.fitness_center),
-  Tx('Salary Deposit', 'Income', 3200.00, '09:15 am',
-      DateTime(2025, 6, 1, 9, 15), Icons.work_outline),
-  Tx('Salary Deposit', 'Income', 3200.00, '09:15 am',
-      DateTime(2025, 5, 1, 9, 15), Icons.work_outline),
+  Tx('Shopping at Daraz', 'Payment', -248.59, '08:43 pm', DateTime(2025, 12, 15, 20, 43), Icons.shopping_bag_outlined),
+  Tx('DIU Transport', 'Payment', -18.00, '08:43 pm', DateTime(2025, 12, 14, 20, 43), Icons.directions_car_outlined),
+  Tx('Send Money to Raiyan', 'Payment', -145.98, '08:43 pm', DateTime(2025, 12, 12, 20, 43), Icons.send_outlined),
+  Tx('Freelance Payment', 'Income', 850.00, '10:20 am', DateTime(2025, 12, 10, 10, 20), Icons.payments_outlined),
+  Tx('Grocery Store', 'Payment', -67.40, '07:12 pm', DateTime(2025, 12, 5, 19, 12), Icons.local_grocery_store_outlined),
+  Tx('Coffee Shop', 'Payment', -8.75, '10:05 am', DateTime(2025, 11, 20, 10, 5), Icons.local_cafe_outlined),
+  Tx('Electricity Bill', 'Bills', -42.10, '11:30 am', DateTime(2025, 11, 5, 11, 30), Icons.bolt_outlined),
+  Tx('Salary Deposit', 'Income', 3200.00, '09:15 am', DateTime(2025, 11, 1, 9, 15), Icons.work_outline),
+  Tx('Netflix', 'Subscription', -15.99, '01:00 am', DateTime(2025, 10, 2, 1, 0), Icons.movie_outlined),
+  Tx('Salary Deposit', 'Income', 3200.00, '09:15 am', DateTime(2025, 10, 1, 9, 15), Icons.work_outline),
+  Tx('Restaurant', 'Payment', -84.20, '08:30 pm', DateTime(2025, 9, 15, 20, 30), Icons.restaurant_outlined),
+  Tx('Salary Deposit', 'Income', 3200.00, '09:15 am', DateTime(2025, 9, 1, 9, 15), Icons.work_outline),
+  Tx('Online Shopping', 'Payment', -120.00, '03:00 pm', DateTime(2025, 8, 12, 15, 0), Icons.shopping_cart_outlined),
+  Tx('Salary Deposit', 'Income', 3200.00, '09:15 am', DateTime(2025, 8, 1, 9, 15), Icons.work_outline),
+  Tx('Salary Deposit', 'Income', 3200.00, '09:15 am', DateTime(2025, 7, 1, 9, 15), Icons.work_outline),
+  Tx('Gym Membership', 'Bills', -50.00, '10:00 am', DateTime(2025, 6, 5, 10, 0), Icons.fitness_center),
+  Tx('Salary Deposit', 'Income', 3200.00, '09:15 am', DateTime(2025, 6, 1, 9, 15), Icons.work_outline),
+  Tx('Salary Deposit', 'Income', 3200.00, '09:15 am', DateTime(2025, 5, 1, 9, 15), Icons.work_outline),
 ];
 
 double get totalBalance => allTransactions.fold(0.0, (sum, t) => sum + t.amount);
@@ -255,7 +231,6 @@ Future<bool> _authenticateBiometrics(BuildContext context) async {
     final bool canAuthenticate = canAuthenticateWithBiometrics || await _localAuth.isDeviceSupported();
 
     if (!canAuthenticate) {
-      // Fallback simulation for emulators without biometrics
       return await showDialog<bool>(
         context: context,
         builder: (ctx) => AlertDialog(
@@ -379,7 +354,39 @@ Future<void> _shareInvoice(
   await Printing.sharePdf(bytes: bytes, filename: 'invoice_${now.millisecondsSinceEpoch}.pdf');
 }
 
-void main() => runApp(const MainApp());
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  
+  // Load Theme and Language preferences before starting the app
+  final prefs = await SharedPreferences.getInstance();
+  darkModeNotifier.value = prefs.getBool('dark_mode') ?? false;
+  isBanglaNotifier.value = prefs.getBool('is_bangla') ?? false;
+  
+  // Save language preference when changed
+  isBanglaNotifier.addListener(() async {
+    final p = await SharedPreferences.getInstance();
+    await p.setBool('is_bangla', isBanglaNotifier.value);
+  });
+
+  // Save theme preference when changed
+  darkModeNotifier.addListener(() async {
+    final p = await SharedPreferences.getInstance();
+    await p.setBool('dark_mode', darkModeNotifier.value);
+  });
+
+  // Save user state when changed
+  userNotifier.addListener(() async {
+    final p = await SharedPreferences.getInstance();
+    final u = userNotifier.value;
+    await p.setString('user_name', u.name);
+    await p.setString('user_bank', u.bankName);
+    await p.setString('user_bank_id', u.bankId);
+    await p.setBool('biometric_enabled', u.isBiometricEnabled);
+    if (u.avatarPath != null) await p.setString('user_avatar', u.avatarPath!);
+  });
+
+  runApp(const MainApp());
+}
 
 class MainApp extends StatelessWidget {
   const MainApp({super.key});
@@ -411,15 +418,73 @@ class MainApp extends StatelessWidget {
   }
 }
 
-class AuthWrapper extends StatelessWidget {
+class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
 
   @override
+  State<AuthWrapper> createState() => _AuthWrapperState();
+}
+
+class _AuthWrapperState extends State<AuthWrapper> {
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _checkQuickLogin();
+  }
+
+  Future<void> _checkQuickLogin() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final name = prefs.getString('user_name');
+      final bankName = prefs.getString('user_bank');
+      final bankId = prefs.getString('user_bank_id');
+      final isBioEnabled = prefs.getBool('biometric_enabled') ?? false;
+      final avatar = prefs.getString('user_avatar');
+
+      if (name != null && bankId != null && name != 'User') {
+        userNotifier.value = UserState(
+          name: name,
+          bankName: bankName ?? 'Islami Bank',
+          bankId: bankId,
+          isBiometricEnabled: isBioEnabled,
+          avatarPath: avatar,
+        );
+
+        if (isBioEnabled) {
+          bool success = await _localAuth.authenticate(
+            localizedReason: tr('Quick Login via Biometrics', 'বায়োমেট্রিক্স দিয়ে দ্রুত লগইন'),
+            options: const AuthenticationOptions(stickyAuth: true, biometricOnly: true),
+          );
+          if (success) {
+            authNotifier.value = true;
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint("Error loading prefs: $e");
+    }
+
+    if (mounted) {
+      setState(() {
+        _isLoading = false;
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    if (_isLoading) {
+      return const Scaffold(
+        body: Center(child: CircularProgressIndicator()),
+      );
+    }
+
     return ValueListenableBuilder<bool>(
       valueListenable: authNotifier,
       builder: (context, isLoggedIn, _) {
-        return isLoggedIn ? const HomeShell() : const LoginPage();
+        return authNotifier.value ? const HomeShell() : const LoginPage();
       },
     );
   }
@@ -467,11 +532,13 @@ class _LoginPageState extends State<LoginPage> {
       return;
     }
 
+    final current = userNotifier.value;
     userNotifier.value = UserState(
       name: _nameController.text.trim(),
       bankName: _selectedBank,
       bankId: _bankIdController.text.trim(),
-      isBiometricEnabled: false,
+      isBiometricEnabled: current.isBiometricEnabled,
+      avatarPath: current.avatarPath,
     );
 
     authNotifier.value = true;
@@ -684,11 +751,12 @@ class _HomeShellState extends State<HomeShell> {
     return ValueListenableBuilder<bool>(
       valueListenable: isBanglaNotifier,
       builder: (context, isBangla, _) {
+        // REMOVED const here to force rebuild on language change
         final pages = [
-          const HomePage(),
-          const SendPage(),
-          const ReceivePage(),
-          const ProfilePage(),
+          HomePage(),
+          SendPage(),
+          ReceivePage(),
+          ProfilePage(),
         ];
 
         return Scaffold(
@@ -739,7 +807,7 @@ class HomePage extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const _Header(),
+              _Header(),
               const SizedBox(height: 16),
               Expanded(
                 child: Container(
@@ -1052,10 +1120,30 @@ class _SendPageState extends State<SendPage> {
     super.dispose();
   }
 
+  Future<void> _scanQR() async {
+    final result = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const QrScannerScreen()),
+    );
+    if (result != null && result is String) {
+      codeController.text = result;
+    }
+  }
+
   void _processSend(BuildContext context) async {
     final code = codeController.text.trim();
     if (code.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(tr('Enter a code first', 'প্রথমে একটি কোড লিখুন'))));
+      return;
+    }
+
+    if (!userNotifier.value.isBiometricEnabled) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.red,
+          content: Text(tr('Please enable Biometric Security in Profile to send money.', 'টাকা পাঠাতে প্রোফাইলে বায়োমেট্রিক নিরাপত্তা চালু করুন।')),
+        ),
+      );
       return;
     }
 
@@ -1132,21 +1220,20 @@ class _SendPageState extends State<SendPage> {
                       final amt = double.tryParse(amountController.text) ?? 0;
                       if (amt <= 0) return;
 
-                      if (userNotifier.value.isBiometricEnabled) {
-                        bool auth = await _authenticateBiometrics(context);
-                        if (!auth) {
-                          if (context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                backgroundColor: Colors.red,
-                                content: Text(tr('Authentication Failed', 'প্রমাণীকরণ ব্যর্থ হয়েছে')),
-                              ),
-                            );
-                          }
-                          return;
+                      bool auth = await _authenticateBiometrics(context);
+                      if (!auth) {
+                        if (context.mounted) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              backgroundColor: Colors.red,
+                              content: Text(tr('Authentication Failed', 'প্রমাণীকরণ ব্যর্থ হয়েছে')),
+                            ),
+                          );
                         }
+                        return;
                       }
 
+                      if (!context.mounted) return;
                       Navigator.pop(ctx);
                       ScaffoldMessenger.of(context).showSnackBar(
                         SnackBar(
@@ -1163,10 +1250,8 @@ class _SendPageState extends State<SendPage> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        if (userNotifier.value.isBiometricEnabled) ...[
-                          const Icon(Icons.fingerprint, size: 20),
-                          const SizedBox(width: 8),
-                        ],
+                        const Icon(Icons.fingerprint, size: 20),
+                        const SizedBox(width: 8),
                         Text(tr('Confirm Transfer', 'স্থানান্তর নিশ্চিত করুন'), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                       ],
                     ),
@@ -1204,9 +1289,7 @@ class _SendPageState extends State<SendPage> {
               Text(tr('Scan a QR code or enter a payment code', 'কিউআর কোড স্ক্যান করুন বা পেমেন্ট কোড দিন'), style: TextStyle(color: _muted(context), fontSize: 14)),
               const SizedBox(height: 28),
               GestureDetector(
-                onTap: () => ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text(tr('QR scanner coming soon', 'কিউআর স্ক্যানার শীঘ্রই আসছে'))),
-                ),
+                onTap: _scanQR,
                 child: Container(
                   width: double.infinity,
                   height: 260,
@@ -1301,6 +1384,83 @@ class _SendPageState extends State<SendPage> {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class QrScannerScreen extends StatefulWidget {
+  const QrScannerScreen({super.key});
+
+  @override
+  State<QrScannerScreen> createState() => _QrScannerScreenState();
+}
+
+class _QrScannerScreenState extends State<QrScannerScreen> {
+  final MobileScannerController controller = MobileScannerController(
+    detectionSpeed: DetectionSpeed.noDuplicates,
+  );
+
+  @override
+  void dispose() {
+    controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: Colors.black,
+      appBar: AppBar(
+        title: Text(tr('Scan QR Code', 'কিউআর স্ক্যান করুন')),
+        backgroundColor: Colors.transparent,
+        foregroundColor: Colors.white,
+        elevation: 0,
+      ),
+      body: Stack(
+        children: [
+          MobileScanner(
+            controller: controller,
+            onDetect: (capture) {
+              final List<Barcode> barcodes = capture.barcodes;
+              for (final barcode in barcodes) {
+                if (barcode.rawValue != null) {
+                  String code = barcode.rawValue!;
+                  // Parse the URI if it's a wallet payment code
+                  if (code.startsWith('wallet://pay') || code.contains('code=')) {
+                    try {
+                      final uri = Uri.parse(code);
+                      code = uri.queryParameters['code'] ?? code;
+                    } catch (_) {}
+                  }
+                  Navigator.pop(context, code);
+                  break;
+                }
+              }
+            },
+          ),
+          Center(
+            child: Container(
+              width: 250,
+              height: 250,
+              decoration: BoxDecoration(
+                border: Border.all(color: const Color(0xFF006A4E), width: 3),
+                borderRadius: BorderRadius.circular(24),
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: 50,
+            left: 0,
+            right: 0,
+            child: Center(
+              child: Text(
+                tr('Align QR code within the frame', 'ফ্রেমের মধ্যে কিউআর কোড রাখুন'),
+                style: const TextStyle(color: Colors.white, fontSize: 16),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -1533,6 +1693,21 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
+  Future<void> _toggleBiometrics(bool value) async {
+    if (value) {
+      bool auth = await _authenticateBiometrics(context);
+      if (auth) {
+        userNotifier.value = userNotifier.value.copyWith(isBiometricEnabled: true);
+        _toast(tr('Biometrics enabled. Quick Login active.', 'বায়োমেট্রিক্স চালু হয়েছে।'));
+      } else {
+        _toast(tr('Authentication failed', 'প্রমাণীকরণ ব্যর্থ হয়েছে'));
+      }
+    } else {
+      userNotifier.value = userNotifier.value.copyWith(isBiometricEnabled: false);
+      _toast(tr('Biometrics disabled', 'বায়োমেট্রিক্স বন্ধ হয়েছে'));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final card = _surfaceCard(context);
@@ -1626,21 +1801,10 @@ class _ProfilePageState extends State<ProfilePage> {
                       builder: (context, user, _) => SwitchListTile(
                         secondary: const Icon(Icons.fingerprint),
                         title: Text(tr('Biometric Security', 'বায়োমেট্রিক নিরাপত্তা')),
-                        subtitle: Text(tr('Use for login and transfers', 'লগইন এবং ট্রান্সফারের জন্য ব্যবহার করুন')),
+                        subtitle: Text(tr('Required for Sending & Quick Login', 'পাঠানো এবং দ্রুত লগইনের জন্য আবশ্যক')),
                         value: user.isBiometricEnabled,
                         activeColor: const Color(0xFF006A4E),
-                        onChanged: (v) async {
-                          if (v) {
-                            bool success = await _authenticateBiometrics(context);
-                            if (success) {
-                              userNotifier.value = userNotifier.value.copyWith(isBiometricEnabled: true);
-                              _toast(tr('Biometrics enabled', 'বায়োমেট্রিক্স চালু হয়েছে'));
-                            }
-                          } else {
-                            userNotifier.value = userNotifier.value.copyWith(isBiometricEnabled: false);
-                            _toast(tr('Biometrics disabled', 'বায়োমেট্রিক্স বন্ধ হয়েছে'));
-                          }
-                        },
+                        onChanged: _toggleBiometrics,
                       ),
                     ),
                     const Divider(height: 1, indent: 16, endIndent: 16),
