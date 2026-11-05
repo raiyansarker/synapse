@@ -11,7 +11,7 @@ Transitions are defined and enforced by [Spring Statemachine](https://docs.sprin
 | `spring-statemachine-core` | The dependency in `build.gradle.kts`. This is the module to keep. |
 | `PaymentStateMachineConfig` | `@EnableStateMachineFactory` configuration. States, end states, and external transitions live here. |
 | `PaymentStateMachine` | Builds one machine from `StateMachineFactory` per call, restores the payment's current state, sends one event, and returns the next state. |
-| `Payment` | The payment the ledger tracks. `atomicId` is the id returned to the payee's bank. `payerVa`, `payeeVa`, and `amount` travel with it. |
+| `Payment` | The payment the ledger tracks. `atomicId` is the id returned to the publishing bank. `sva`, `rva`, and `amount` travel with it. |
 
 `spring-statemachine-starter` and the JPA, Redis, and Mongo persistence modules are built for Spring Boot 3.5. This service is Spring Boot 4.1, and the Statemachine project has no Boot 4 support. Leave those modules out. When a payment is stored, store it as a normal JPA entity. The state machine is the transition engine, not the database.
 
@@ -130,13 +130,13 @@ The step bodies do not call the banks yet. The directory, the debit, the credit,
 
 ```json
 {
-  "payerVa": "mina@city",
+  "sva": "mina@city",
   "amount": "10.00",
-  "payeeVa": "raiyan@city"
+  "rva": "raiyan@city"
 }
 ```
 
-`payerVa` is the virtual address the money leaves. `payeeVa` is how the ledger finds the payee's bank. `amount` is what moves. The shared envelope wraps the response, and `data.atomicId` is the id the bank tracks. Names, a note, and a currency are not on this request: the directory supplies the names, and this network has one currency.
+`sva` is the sender virtual address, the address the money leaves. `rva` is the receiver virtual address, and the ledger uses it to find the receiver's bank. `amount` is what moves. Bean Validation checks this DTO. The shared envelope wraps the response, and `data.atomicId` is the id the bank tracks. Names, a note, and a currency are not on this request: the directory supplies the names, and this network has one currency.
 
 Later replies from a bank will carry that same id in the body. Those routes are not built yet.
 

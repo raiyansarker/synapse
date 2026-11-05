@@ -7,38 +7,40 @@ import java.util.UUID;
 
 /**
  * One payment tracked by the switch. {@code atomicId} is the id returned to the bank that published it.
+ *
+ * @param sva sender virtual address, {@code name@bank}. The address the money leaves.
+ * @param rva receiver virtual address, {@code name@bank}. Used to find the receiver's bank.
  */
 public record Payment(
     String atomicId,
     PaymentState state,
-    String payerVa,
-    String payeeVa,
+    String sva,
+    String rva,
     BigDecimal amount) implements Serializable {
 
-  private static final long serialVersionUID = 3L;
+  private static final long serialVersionUID = 4L;
 
   public Payment {
     Objects.requireNonNull(atomicId, "atomicId");
     Objects.requireNonNull(state, "state");
-    requireVa(payerVa, "payerVa");
-    requireVa(payeeVa, "payeeVa");
+    requireVa(sva, "sva");
+    requireVa(rva, "rva");
     Objects.requireNonNull(amount, "amount");
     if (amount.signum() <= 0) {
       throw new IllegalArgumentException("amount must be positive");
     }
   }
 
-  public static Payment accept(String payerVa, String payeeVa, BigDecimal amount) {
-    return new Payment(UUID.randomUUID().toString(), PaymentState.ACCEPTED, payerVa, payeeVa, amount);
+  public static Payment accept(String sva, String rva, BigDecimal amount) {
+    return new Payment(UUID.randomUUID().toString(), PaymentState.ACCEPTED, sva, rva, amount);
   }
 
   public Payment withState(PaymentState next) {
-    return new Payment(atomicId, next, payerVa, payeeVa, amount);
+    return new Payment(atomicId, next, sva, rva, amount);
   }
 
   private static void requireVa(String value, String label) {
-    int at = value == null ? -1 : value.indexOf('@');
-    if (at <= 0 || at != value.lastIndexOf('@') || at == value.length() - 1) {
+    if (!VaValidator.matches(value)) {
       throw new IllegalArgumentException(label + " must look like name@bank");
     }
   }

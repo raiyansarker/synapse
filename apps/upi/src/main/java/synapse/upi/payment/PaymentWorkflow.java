@@ -34,10 +34,9 @@ public class PaymentWorkflow {
     this.self = self;
   }
 
-  public Payment start(String payerVa, String payeeVa, BigDecimal amount) {
-    Payment payment = Payment.accept(payerVa, payeeVa, amount);
+  public Payment start(Payment payment) {
     dbos.startWorkflow(
-        () -> self.run(payment.atomicId(), payment.payerVa(), payment.payeeVa(), payment.amount()),
+        () -> self.run(payment.atomicId(), payment.sva(), payment.rva(), payment.amount()),
         new StartWorkflowOptions(payment.atomicId()));
     return payment;
   }
@@ -51,8 +50,8 @@ public class PaymentWorkflow {
   }
 
   @Workflow
-  public PaymentState run(String atomicId, String payerVa, String payeeVa, BigDecimal amount) {
-    Payment payment = new Payment(atomicId, PaymentState.ACCEPTED, payerVa, payeeVa, amount);
+  public PaymentState run(String atomicId, String sva, String rva, BigDecimal amount) {
+    Payment payment = new Payment(atomicId, PaymentState.ACCEPTED, sva, rva, amount);
     if (!self.resolve(payment)) {
       payment = payment.withState(self.apply(payment, PaymentEvent.VPA_UNRESOLVED));
       self.reportToPayee(payment);
