@@ -4,6 +4,7 @@ import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.Objects;
 import java.util.UUID;
+import synapse.upi.payment.statemachine.PaymentState;
 
 /**
  * One payment tracked by the switch. {@code atomicId} is the id returned to the bank that published it.

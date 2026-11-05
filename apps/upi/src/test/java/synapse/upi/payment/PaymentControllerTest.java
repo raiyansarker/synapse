@@ -16,6 +16,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import synapse.common.CommonHttpAutoConfiguration;
+import synapse.upi.payment.workflow.PaymentWorkflow;
 
 @WebMvcTest(PaymentController.class)
 @ImportAutoConfiguration(CommonHttpAutoConfiguration.class)

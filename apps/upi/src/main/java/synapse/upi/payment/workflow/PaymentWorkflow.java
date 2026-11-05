@@ -1,4 +1,4 @@
-package synapse.upi.payment;
+package synapse.upi.payment.workflow;
 
 import dev.dbos.transact.DBOS;
 import dev.dbos.transact.StartWorkflowOptions;
@@ -10,6 +10,10 @@ import java.util.Optional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
+import synapse.upi.payment.Payment;
+import synapse.upi.payment.statemachine.PaymentEvent;
+import synapse.upi.payment.statemachine.PaymentState;
+import synapse.upi.payment.statemachine.PaymentStateMachine;
 
 /**
  * One DBOS workflow per payment. The workflow id is the atomic id. Completed steps are checkpointed

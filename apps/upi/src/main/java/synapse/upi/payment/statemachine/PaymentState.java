@@ -1,4 +1,4 @@
-package synapse.upi.payment;
+package synapse.upi.payment.statemachine;
 
 /**
  * Where a payment sits on the switch. Terminal states are Spring Statemachine end states.

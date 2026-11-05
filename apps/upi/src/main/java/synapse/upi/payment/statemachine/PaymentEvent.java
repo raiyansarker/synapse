@@ -1,4 +1,4 @@
-package synapse.upi.payment;
+package synapse.upi.payment.statemachine;
 
 /**
  * Facts that move a payment. The switch applies an event only after the step it names has happened.

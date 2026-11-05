@@ -1,4 +1,4 @@
-package synapse.upi.payment;
+package synapse.upi.payment.statemachine;
 
 import java.util.List;
 import java.util.Objects;
@@ -14,6 +14,7 @@ import org.springframework.statemachine.support.DefaultStateMachineContext;
 import org.springframework.statemachine.transition.Transition;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Mono;
+import synapse.upi.payment.Payment;
 
 /**
  * Runs one Spring Statemachine per transition. The payment's stored state is restored before the

@@ -1,4 +1,4 @@
-package synapse.upi.payment;
+package synapse.upi.payment.statemachine;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -8,6 +8,7 @@ import java.math.BigDecimal;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
+import synapse.upi.payment.Payment;
 
 @SpringJUnitConfig(classes = {PaymentStateMachineConfig.class, PaymentStateMachine.class})
 class PaymentStateMachineTest {

@@ -1,4 +1,6 @@
-package synapse.upi.payment;
+package synapse.upi.payment.workflow;
+
+import synapse.upi.payment.statemachine.PaymentEvent;
 
 /**
  * Bank replies that a running payment workflow can receive. The workflow itself applies every other event.

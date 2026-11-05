@@ -1,4 +1,4 @@
-package synapse.upi.payment;
+package synapse.upi.payment.statemachine;
 
 public class IllegalPaymentTransitionException extends RuntimeException {
 
