@@ -53,12 +53,15 @@ public class PaymentWorkflow {
   public PaymentState run(String atomicId, String payerVirtualAddress, String payeeVirtualAddress) {
     Payment payment = new Payment(atomicId, PaymentState.ACCEPTED, payerVirtualAddress, payeeVirtualAddress);
     if (!self.resolve(payment)) {
-      return self.apply(payment, PaymentEvent.VPA_UNRESOLVED);
+      payment = payment.withState(self.apply(payment, PaymentEvent.VPA_UNRESOLVED));
+      self.reportToPayee(payment);
+      return payment.state();
     }
     payment = payment.withState(self.apply(payment, PaymentEvent.VPA_RESOLVED));
 
     payment = payment.withState(self.apply(payment, awaitBank(PaymentSignal.DEBIT)));
     if (payment.state() != PaymentState.AUTHORIZED) {
+      self.reportToPayee(payment);
       return payment.state();
     }
 
@@ -67,9 +70,8 @@ public class PaymentWorkflow {
     PaymentEvent credit = awaitBank(PaymentSignal.CREDIT);
     payment = payment.withState(self.apply(payment, credit));
     if (credit == PaymentEvent.CREDIT_APPROVED) {
-      self.advise(payment, "payer");
-      self.advise(payment, "payee");
-      return self.apply(payment, PaymentEvent.PARTIES_ADVISED);
+      self.acknowledgePayer(payment);
+      return self.apply(payment, PaymentEvent.PAYER_ACKNOWLEDGED);
     }
 
     self.requestReversal(payment);
@@ -93,9 +95,16 @@ public class PaymentWorkflow {
   @Step
   public void requestReversal(Payment payment) {}
 
-  /** Sends the success result to one party. {@code party} is {@code payer} or {@code payee}. */
-  @Step
-  public void advise(Payment payment, String party) {}
+  /**
+   * Tells the payer's bank the credit succeeded. That bank notifies its user. The payee's bank
+   * already notified its user when it accepted the credit. A failure here retries this step only.
+   */
+  @Step(maxAttempts = 25, intervalSeconds = 5, backOffRate = 2)
+  public void acknowledgePayer(Payment payment) {}
+
+  /** Tells the payee's bank the request ended before a credit. The payee bank notifies its user. */
+  @Step(maxAttempts = 25, intervalSeconds = 5, backOffRate = 2)
+  public void reportToPayee(Payment payment) {}
 
   @Step
   public PaymentState apply(Payment payment, PaymentEvent event) {
