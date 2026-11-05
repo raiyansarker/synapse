@@ -12,7 +12,7 @@ import synapse.upi.payment.dto.PublishPaymentRequest;
 import synapse.upi.payment.workflow.PaymentWorkflow;
 
 @RestController
-@RequestMapping("/payments")
+@RequestMapping("/api/payments")
 @RequiredArgsConstructor
 public class PaymentController {
 
