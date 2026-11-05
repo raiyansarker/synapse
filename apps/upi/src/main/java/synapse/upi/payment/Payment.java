@@ -4,7 +4,7 @@ import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.Objects;
 import java.util.UUID;
-import synapse.common.validation.VaValidator;
+import synapse.common.validation.VirtualAddressValidator;
 import synapse.upi.payment.statemachine.PaymentState;
 
 /**
@@ -42,7 +42,7 @@ public record Payment(
   }
 
   private static void requireVa(String value, String label) {
-    if (!VaValidator.matches(value)) {
+    if (!VirtualAddressValidator.matches(value)) {
       throw new IllegalArgumentException(label + " must look like name@bank");
     }
   }

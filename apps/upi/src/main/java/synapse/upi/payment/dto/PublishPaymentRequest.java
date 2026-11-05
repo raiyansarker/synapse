@@ -4,7 +4,7 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import java.math.BigDecimal;
-import synapse.common.validation.Va;
+import synapse.common.validation.VirtualAddress;
 
 /**
  * Body of {@code POST /payments}.
@@ -14,6 +14,6 @@ import synapse.common.validation.Va;
  * @param rva receiver virtual address, {@code name@bank}. The ledger uses this to find the receiver's bank.
  */
 public record PublishPaymentRequest(
-    @NotBlank @Va String sva,
+    @NotBlank @VirtualAddress String sva,
     @NotNull @Positive BigDecimal amount,
-    @NotBlank @Va String rva) {}
+    @NotBlank @VirtualAddress String rva) {}

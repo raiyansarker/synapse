@@ -3,8 +3,8 @@ package synapse.common.validation;
 import jakarta.validation.ConstraintValidator;
 import jakarta.validation.ConstraintValidatorContext;
 
-/** Bean Validation check for {@link Va}. Null is left to {@code @NotBlank}. */
-public class VaValidator implements ConstraintValidator<Va, String> {
+/** Bean Validation check for {@link VirtualAddress}. Null is left to {@code @NotBlank}. */
+public class VirtualAddressValidator implements ConstraintValidator<VirtualAddress, String> {
 
   public static boolean matches(String value) {
     int at = value == null ? -1 : value.indexOf('@');

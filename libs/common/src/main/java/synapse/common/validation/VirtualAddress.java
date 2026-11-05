@@ -10,7 +10,7 @@ import java.lang.annotation.Target;
 
 /** A virtual address, {@code name@bank}: one {@code @}, with text on both sides. */
 @Documented
-@Constraint(validatedBy = VaValidator.class)
+@Constraint(validatedBy = VirtualAddressValidator.class)
 @Target({
     ElementType.FIELD,
     ElementType.METHOD,
@@ -18,7 +18,7 @@ import java.lang.annotation.Target;
     ElementType.RECORD_COMPONENT
 })
 @Retention(RetentionPolicy.RUNTIME)
-public @interface Va {
+public @interface VirtualAddress {
 
   String message() default "must look like name@bank";
 
