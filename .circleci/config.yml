@@ -1,0 +1,89 @@
+# Builds the Synapse Wallet Android release APK and publishes a GitHub Release.
+#
+# The release tag is the 7-character commit hash (CIRCLE_SHA1). The tag is
+# created through the GitHub API, so this workflow ignores tags. That keeps
+# the tag push from starting another build.
+#
+# Project setting required before the release step can succeed:
+#   GITHUB_TOKEN — fine-grained or classic token with contents:write on this repo.
+# CircleCI reads it as a project environment variable. Do not commit the token.
+
+version: 2.1
+
+orbs:
+  flutter: circleci/flutter@2.1.0
+
+jobs:
+  android-release:
+    docker:
+      - image: cimg/android:2026.10.1
+    resource_class: large
+    steps:
+      - checkout
+      - run:
+          name: Skip when the wallet did not change
+          command: |
+            if ! git cat-file -e HEAD^ 2>/dev/null; then
+              git fetch --deepen=1 origin || true
+            fi
+            if ! git cat-file -e HEAD^ 2>/dev/null; then
+              echo "No parent commit. Building."
+              exit 0
+            fi
+            if git diff --name-only HEAD^ HEAD | grep -Eq '^(apps/mobile/|\.circleci/)'; then
+              echo "Wallet or CircleCI config changed."
+            else
+              echo "No wallet changes on this commit. Skipping."
+              circleci step halt
+            fi
+      - flutter/install_sdk_and_pub:
+          version: "3.47.9"
+          app-dir: apps/mobile
+      - run:
+          name: Install the NDK Flutter 3.47 expects
+          command: sdkmanager --install "ndk;28.2.13676358"
+      - run:
+          name: Build the release APK
+          working_directory: apps/mobile
+          command: |
+            # The checked-in Gradle file asks for an 8G heap. This executor has 8G total.
+            printf '\norg.gradle.jvmargs=-Xmx2g -XX:MaxMetaspaceSize=512m -XX:ReservedCodeCacheSize=256m\n' >> android/gradle.properties
+            SHORT="${CIRCLE_SHA1:0:7}"
+            flutter build apk --release \
+              --build-name="1.0.0+${SHORT}" \
+              --build-number="${CIRCLE_BUILD_NUM}"
+            cp build/app/outputs/flutter-apk/app-release.apk \
+              "build/app/outputs/flutter-apk/synapse-wallet-${SHORT}.apk"
+      - store_artifacts:
+          path: apps/mobile/build/app/outputs/flutter-apk
+          destination: android
+      - run:
+          name: Publish the GitHub release
+          working_directory: apps/mobile
+          command: |
+            if [ -z "${GITHUB_TOKEN:-}" ]; then
+              echo "Set GITHUB_TOKEN on the CircleCI project. It needs contents:write."
+              exit 1
+            fi
+            export GH_TOKEN="$GITHUB_TOKEN"
+            SHORT="${CIRCLE_SHA1:0:7}"
+            APK="build/app/outputs/flutter-apk/synapse-wallet-${SHORT}.apk"
+            NOTES="$(printf 'Android release for commit %s.\n\n%s\n' "$CIRCLE_SHA1" "$(git log -1 --pretty=%B)")"
+            if gh release view "$SHORT" >/dev/null 2>&1; then
+              gh release upload "$SHORT" "$APK" --clobber
+            else
+              gh release create "$SHORT" "$APK" \
+                --target "$CIRCLE_SHA1" \
+                --title "Synapse Wallet ${SHORT}" \
+                --notes "$NOTES"
+            fi
+
+workflows:
+  wallet-android:
+    jobs:
+      - android-release:
+          filters:
+            branches:
+              only: main
+            tags:
+              ignore: /.*/
