@@ -1,4 +1,4 @@
-package synapse.upi.payment.controller;
+package synapse.upi.payment.dto;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
