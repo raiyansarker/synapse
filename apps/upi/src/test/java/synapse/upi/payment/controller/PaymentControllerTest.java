@@ -39,7 +39,7 @@ class PaymentControllerTest {
     when(payments.start(published.capture())).thenAnswer(invocation -> invocation.getArgument(0));
 
     mvc.perform(
-            post("/api/payments")
+            post("/api/pay")
                 .contentType(MediaType.APPLICATION_JSON)
                 .header("X-Request-Id", "req-1")
                 .content(body("mina@city", "10.00", "raiyan@city")))
@@ -67,7 +67,7 @@ class PaymentControllerTest {
   void rejectsAnAddressWithoutABank(String sva, String amount, String rva, String field)
       throws Exception {
     mvc.perform(
-            post("/api/payments")
+            post("/api/pay")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body(sva, amount, rva)))
         .andExpect(status().isBadRequest())
@@ -82,7 +82,7 @@ class PaymentControllerTest {
   @CsvSource({"0", "-1"})
   void rejectsAnAmountThatIsNotPositive(String amount) throws Exception {
     mvc.perform(
-            post("/api/payments")
+            post("/api/pay")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(body("mina@city", amount, "raiyan@city")))
         .andExpect(status().isBadRequest())
@@ -93,7 +93,7 @@ class PaymentControllerTest {
   @Test
   void rejectsAMissingReceiver() throws Exception {
     mvc.perform(
-            post("/api/payments")
+            post("/api/pay")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(
                     """
@@ -106,7 +106,7 @@ class PaymentControllerTest {
 
   @Test
   void rejectsAMalformedBody() throws Exception {
-    mvc.perform(post("/api/payments").contentType(MediaType.APPLICATION_JSON).content("{"))
+    mvc.perform(post("/api/pay").contentType(MediaType.APPLICATION_JSON).content("{"))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.error.title").value("Bad Request"))
         .andExpect(jsonPath("$.error.detail").value("Malformed request body"));

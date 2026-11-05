@@ -7,7 +7,7 @@ import java.math.BigDecimal;
 import synapse.common.validation.VirtualAddress;
 
 /**
- * Body of {@code POST /api/payments}.
+ * Body of {@code POST /api/pay}.
  *
  * @param sva sender virtual address, {@code name@bank}. The address the money leaves.
  * @param amount the amount that moves

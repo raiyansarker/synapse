@@ -127,7 +127,7 @@ The step bodies do not call the banks yet. The directory, the debit, the credit,
 
 ## Publish
 
-`POST /api/payments`. The payee's bank publishes a payment. The atomic id is minted by the ledger and returned in the response body. It is not a path segment.
+`POST /api/pay`. The payee's bank publishes a pay, the UPI name for this money movement. The atomic id is minted by the ledger and returned in the response body. It is not a path segment.
 
 ```json
 {
