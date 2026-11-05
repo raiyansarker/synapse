@@ -1,0 +1,76 @@
+# Builds the Synapse Wallet release APK and publishes a GitHub Release.
+# The tag is the 7-character commit hash. This workflow listens only to
+# branch pushes, so the tag it creates does not start another run.
+# The built-in GITHUB_TOKEN is enough. contents: write is granted below.
+
+name: Android release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - apps/mobile/**
+      - .github/workflows/android-release.yml
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: android-actions/setup-android@v4
+        with:
+          packages: platform-tools platforms;android-36 build-tools;36.0.0 ndk;28.2.13676358
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.47.9
+          cache: true
+
+      - name: Build the release APK
+        working-directory: apps/mobile
+        run: |
+          # The checked-in Gradle file asks for an 8G heap. This runner has 7G total.
+          printf '\norg.gradle.jvmargs=-Xmx2g -XX:MaxMetaspaceSize=512m -XX:ReservedCodeCacheSize=256m\n' >> android/gradle.properties
+          short="${GITHUB_SHA::7}"
+          flutter build apk --release \
+            --build-name="1.0.0+${short}" \
+            --build-number="${GITHUB_RUN_NUMBER}"
+          cp build/app/outputs/flutter-apk/app-release.apk \
+            "build/app/outputs/flutter-apk/synapse-wallet-${short}.apk"
+          echo "short=${short}" >> "$GITHUB_OUTPUT"
+        id: apk
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: synapse-wallet-${{ steps.apk.outputs.short }}
+          path: apps/mobile/build/app/outputs/flutter-apk/synapse-wallet-*.apk
+          if-no-files-found: error
+
+      - name: Publish the GitHub release
+        working-directory: apps/mobile
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          short="${GITHUB_SHA::7}"
+          apk="build/app/outputs/flutter-apk/synapse-wallet-${short}.apk"
+          notes="$(printf 'Android release for commit %s.\n\n%s\n' "$GITHUB_SHA" "$(git log -1 --pretty=%B)")"
+          if gh release view "$short" >/dev/null 2>&1; then
+            gh release upload "$short" "$apk" --clobber
+          else
+            gh release create "$short" "$apk" \
+              --target "$GITHUB_SHA" \
+              --title "Synapse Wallet ${short}" \
+              --notes "$notes"
+          fi
