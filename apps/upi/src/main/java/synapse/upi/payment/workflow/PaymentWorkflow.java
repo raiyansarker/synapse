@@ -87,8 +87,8 @@ public class PaymentWorkflow {
   }
 
   /**
-   * Resolves both virtual addresses and, when they resolve, asks the payer's bank for the debit.
-   * A directory and the bank call replace this body. The step boundary is what must stay.
+   * Resolves both virtual addresses and, when they resolve, asks the payer's bank for the debit. A
+   * directory and the bank call replace this body. The step boundary is what must stay.
    */
   @Step
   public boolean resolve(Payment payment) {
@@ -107,8 +107,8 @@ public class PaymentWorkflow {
   public void requestReversal(Payment payment) {}
 
   /**
-   * Tells the payer's bank the credit succeeded. Returns false when that acknowledgement fails.
-   * The workflow then sends a reversal. A thrown exception is a crash, not a failed acknowledgement.
+   * Tells the payer's bank the credit succeeded. Returns false when that acknowledgement fails. The
+   * workflow then sends a reversal. A thrown exception is a crash, not a failed acknowledgement.
    */
   @Step
   public boolean acknowledgePayer(Payment payment) {

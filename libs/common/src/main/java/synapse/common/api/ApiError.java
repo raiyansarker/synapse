@@ -11,6 +11,5 @@ public class ApiError {
 
   String title;
   String detail;
-  @Builder.Default
-  List<Map<String, String>> reasons = List.of();
+  @Builder.Default List<Map<String, String>> reasons = List.of();
 }

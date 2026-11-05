@@ -7,8 +7,8 @@ import org.springframework.web.bind.annotation.RestController;
 import synapse.common.exception.NotFoundException;
 
 /**
- * Example of the shared HTTP library. A returned account is wrapped by the library.
- * The id {@code missing} throws {@link NotFoundException}, which the library renders as an error.
+ * Example of the shared HTTP library. A returned account is wrapped by the library. The id {@code
+ * missing} throws {@link NotFoundException}, which the library renders as an error.
  */
 @RestController
 @RequestMapping("/demo/accounts")

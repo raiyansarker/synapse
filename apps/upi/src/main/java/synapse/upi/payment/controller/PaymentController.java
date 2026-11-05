@@ -20,7 +20,8 @@ public class PaymentController {
 
   @PostMapping
   public AcceptedPayment publish(@Valid @RequestBody PublishPaymentRequest request) {
-    Payment payment = payments.start(Payment.accept(request.sva(), request.rva(), request.amount()));
+    Payment payment =
+        payments.start(Payment.accept(request.sva(), request.rva(), request.amount()));
     return new AcceptedPayment(payment.atomicId());
   }
 }

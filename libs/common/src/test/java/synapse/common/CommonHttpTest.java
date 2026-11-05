@@ -18,8 +18,7 @@ import org.springframework.test.web.servlet.MockMvc;
 @ImportAutoConfiguration(CommonHttpAutoConfiguration.class)
 class CommonHttpTest {
 
-  @Autowired
-  private MockMvc mvc;
+  @Autowired private MockMvc mvc;
 
   @Test
   void wrapsASuccessfulBodyAndEchoesTheRequestId() throws Exception {

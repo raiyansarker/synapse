@@ -52,6 +52,6 @@ jobs:
           SPRING_DATASOURCE_USERNAME: postgres
           SPRING_DATASOURCE_PASSWORD: postgres
         run: |
-          (cd libs/common && ./gradlew test --no-parallel --max-workers=1)
-          (cd apps/bank && ./gradlew test --no-parallel --max-workers=1)
-          (cd apps/upi && ./gradlew test --no-parallel --max-workers=1)
+          (cd libs/common && ./gradlew spotlessCheck test --no-parallel --max-workers=1)
+          (cd apps/bank && ./gradlew spotlessCheck test --no-parallel --max-workers=1)
+          (cd apps/upi && ./gradlew spotlessCheck test --no-parallel --max-workers=1)

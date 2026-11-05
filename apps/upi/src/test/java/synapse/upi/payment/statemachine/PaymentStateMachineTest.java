@@ -13,8 +13,7 @@ import synapse.upi.payment.Payment;
 @SpringJUnitConfig(classes = {PaymentStateMachineConfig.class, PaymentStateMachine.class})
 class PaymentStateMachineTest {
 
-  @Autowired
-  private PaymentStateMachine machine;
+  @Autowired private PaymentStateMachine machine;
 
   @Test
   void happyPathKeepsTheAtomicId() {
@@ -41,8 +40,10 @@ class PaymentStateMachineTest {
 
   @Test
   void unresolvedVirtualAddressEndsThePayment() {
-    Payment payment = machine.apply(
-        Payment.accept("mina@city", "raiyan@city", new BigDecimal("1.00")), PaymentEvent.VPA_UNRESOLVED);
+    Payment payment =
+        machine.apply(
+            Payment.accept("mina@city", "raiyan@city", new BigDecimal("1.00")),
+            PaymentEvent.VPA_UNRESOLVED);
 
     assertEquals(PaymentState.RESOLUTION_FAILED, payment.state());
   }
@@ -92,9 +93,10 @@ class PaymentStateMachineTest {
   void rejectsAnEventTheCurrentStateDoesNotAllow() {
     Payment payment = Payment.accept("mina@city", "raiyan@city", new BigDecimal("1.00"));
 
-    IllegalPaymentTransitionException error = assertThrows(
-        IllegalPaymentTransitionException.class,
-        () -> machine.apply(payment, PaymentEvent.CREDIT_APPROVED));
+    IllegalPaymentTransitionException error =
+        assertThrows(
+            IllegalPaymentTransitionException.class,
+            () -> machine.apply(payment, PaymentEvent.CREDIT_APPROVED));
 
     assertEquals(PaymentState.ACCEPTED, error.state());
     assertEquals(PaymentEvent.CREDIT_APPROVED, error.event());

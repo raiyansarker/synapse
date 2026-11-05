@@ -23,26 +23,26 @@ import synapse.upi.payment.workflow.PaymentWorkflow;
 @ImportAutoConfiguration(CommonHttpAutoConfiguration.class)
 class PaymentControllerTest {
 
-  @Autowired
-  private MockMvc mvc;
+  @Autowired private MockMvc mvc;
 
-  @MockitoBean
-  private PaymentWorkflow payments;
+  @MockitoBean private PaymentWorkflow payments;
 
   @Test
   void publishesAndReturnsTheAtomicIdInTheBody() throws Exception {
     ArgumentCaptor<Payment> published = ArgumentCaptor.forClass(Payment.class);
     when(payments.start(published.capture())).thenAnswer(invocation -> invocation.getArgument(0));
 
-    mvc.perform(post("/payments")
-            .contentType(MediaType.APPLICATION_JSON)
-            .content("""
-                {
-                  "sva": "mina@city",
-                  "amount": "10.00",
-                  "rva": "raiyan@city"
-                }
-                """))
+    mvc.perform(
+            post("/payments")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {
+                      "sva": "mina@city",
+                      "amount": "10.00",
+                      "rva": "raiyan@city"
+                    }
+                    """))
         .andExpect(status().isOk())
         .andExpect(jsonPath("$.success").value(true))
         .andExpect(jsonPath("$.data.atomicId").value(published.getValue().atomicId()))
@@ -56,15 +56,17 @@ class PaymentControllerTest {
 
   @Test
   void rejectsAnSvaWithoutABank() throws Exception {
-    mvc.perform(post("/payments")
-            .contentType(MediaType.APPLICATION_JSON)
-            .content("""
-                {
-                  "sva": "mina",
-                  "amount": "10.00",
-                  "rva": "raiyan@city"
-                }
-                """))
+    mvc.perform(
+            post("/payments")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {
+                      "sva": "mina",
+                      "amount": "10.00",
+                      "rva": "raiyan@city"
+                    }
+                    """))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.success").value(false))
         .andExpect(jsonPath("$.error.detail").value("Validation failed"))
@@ -74,14 +76,16 @@ class PaymentControllerTest {
 
   @Test
   void rejectsAMissingRva() throws Exception {
-    mvc.perform(post("/payments")
-            .contentType(MediaType.APPLICATION_JSON)
-            .content("""
-                {
-                  "sva": "mina@city",
-                  "amount": "10.00"
-                }
-                """))
+    mvc.perform(
+            post("/payments")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {
+                      "sva": "mina@city",
+                      "amount": "10.00"
+                    }
+                    """))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.error.title").value("Bad Request"))
         .andExpect(jsonPath("$.error.reasons[0].field").value("rva"));
@@ -89,15 +93,17 @@ class PaymentControllerTest {
 
   @Test
   void rejectsAnAmountThatIsNotPositive() throws Exception {
-    mvc.perform(post("/payments")
-            .contentType(MediaType.APPLICATION_JSON)
-            .content("""
-                {
-                  "sva": "mina@city",
-                  "amount": "0",
-                  "rva": "raiyan@city"
-                }
-                """))
+    mvc.perform(
+            post("/payments")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content(
+                    """
+                    {
+                      "sva": "mina@city",
+                      "amount": "0",
+                      "rva": "raiyan@city"
+                    }
+                    """))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.error.reasons[0].field").value("amount"));
   }

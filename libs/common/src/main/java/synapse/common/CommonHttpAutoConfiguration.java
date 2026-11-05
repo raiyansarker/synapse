@@ -11,10 +11,9 @@ import synapse.common.request.RequestIdFilter;
 @AutoConfiguration
 @ConditionalOnWebApplication(type = ConditionalOnWebApplication.Type.SERVLET)
 @Import({
-    RequestIdFilter.class,
-    ApiMetaFactory.class,
-    ApiResponseAdvice.class,
-    HttpExceptionHandler.class
+  RequestIdFilter.class,
+  ApiMetaFactory.class,
+  ApiResponseAdvice.class,
+  HttpExceptionHandler.class
 })
-public class CommonHttpAutoConfiguration {
-}
+public class CommonHttpAutoConfiguration {}

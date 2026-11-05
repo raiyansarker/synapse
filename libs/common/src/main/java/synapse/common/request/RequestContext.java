@@ -7,11 +7,11 @@ public final class RequestContext {
 
   private static final ThreadLocal<String> REQUEST_ID = new ThreadLocal<>();
 
-  private RequestContext() {
-  }
+  private RequestContext() {}
 
   public static void init(String requestId) {
-    REQUEST_ID.set(requestId == null || requestId.isBlank() ? UUID.randomUUID().toString() : requestId);
+    REQUEST_ID.set(
+        requestId == null || requestId.isBlank() ? UUID.randomUUID().toString() : requestId);
   }
 
   public static String getRequestId() {

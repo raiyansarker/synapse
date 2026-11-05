@@ -32,8 +32,8 @@ import org.springframework.statemachine.config.builders.StateMachineStateConfigu
 import org.springframework.statemachine.config.builders.StateMachineTransitionConfigurer;
 
 /**
- * Allowed payment transitions. Each line is {@code from}, {@code event}, {@code to}.
- * See docs/payment-state-machine.md.
+ * Allowed payment transitions. Each line is {@code from}, {@code event}, {@code to}. See
+ * docs/payment-state-machine.md.
  */
 @Configuration
 @EnableStateMachineFactory(contextEvents = false)
@@ -90,8 +90,8 @@ public class PaymentStateMachineConfig
   }
 
   /** The credit succeeded. The payer's bank is told, or the acknowledgement fails. */
-  private void acknowledgement(StateMachineTransitionConfigurer<PaymentState, PaymentEvent> transitions)
-      throws Exception {
+  private void acknowledgement(
+      StateMachineTransitionConfigurer<PaymentState, PaymentEvent> transitions) throws Exception {
     allow(transitions, ACKNOWLEDGING, PAYER_ACKNOWLEDGED, COMPLETED);
     allow(transitions, ACKNOWLEDGING, PAYER_ACK_FAILED, REVERSAL_PENDING);
   }

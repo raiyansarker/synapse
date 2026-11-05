@@ -19,10 +19,7 @@ public class InternalServerException extends HttpError {
   }
 
   public InternalServerException(
-      String detail,
-      List<Map<String, String>> reasons,
-      Throwable cause
-  ) {
+      String detail, List<Map<String, String>> reasons, Throwable cause) {
     super(HttpStatus.INTERNAL_SERVER_ERROR, "Internal Server Error", detail, reasons, cause);
   }
 }

@@ -1,8 +1,8 @@
 package synapse.upi.payment.statemachine;
 
 /**
- * Where a payment sits on the switch. Terminal states are Spring Statemachine end states.
- * See docs/payment-state-machine.md.
+ * Where a payment sits on the switch. Terminal states are Spring Statemachine end states. See
+ * docs/payment-state-machine.md.
  */
 public enum PaymentState {
   ACCEPTED(false),

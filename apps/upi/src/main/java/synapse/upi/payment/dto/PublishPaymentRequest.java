@@ -11,7 +11,8 @@ import synapse.common.validation.VirtualAddress;
  *
  * @param sva sender virtual address, {@code name@bank}. The address the money leaves.
  * @param amount the amount that moves
- * @param rva receiver virtual address, {@code name@bank}. The ledger uses this to find the receiver's bank.
+ * @param rva receiver virtual address, {@code name@bank}. The ledger uses this to find the
+ *     receiver's bank.
  */
 public record PublishPaymentRequest(
     @NotBlank @VirtualAddress String sva,

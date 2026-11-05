@@ -8,17 +8,15 @@ import synapse.common.validation.VirtualAddressValidator;
 import synapse.upi.payment.statemachine.PaymentState;
 
 /**
- * One payment tracked by the switch. {@code atomicId} is the id returned to the bank that published it.
+ * One payment tracked by the switch. {@code atomicId} is the id returned to the bank that published
+ * it.
  *
  * @param sva sender virtual address, {@code name@bank}. The address the money leaves.
  * @param rva receiver virtual address, {@code name@bank}. Used to find the receiver's bank.
  */
 public record Payment(
-    String atomicId,
-    PaymentState state,
-    String sva,
-    String rva,
-    BigDecimal amount) implements Serializable {
+    String atomicId, PaymentState state, String sva, String rva, BigDecimal amount)
+    implements Serializable {
 
   private static final long serialVersionUID = 4L;
 

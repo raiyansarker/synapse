@@ -12,10 +12,10 @@ import java.lang.annotation.Target;
 @Documented
 @Constraint(validatedBy = VirtualAddressValidator.class)
 @Target({
-    ElementType.FIELD,
-    ElementType.METHOD,
-    ElementType.PARAMETER,
-    ElementType.RECORD_COMPONENT
+  ElementType.FIELD,
+  ElementType.METHOD,
+  ElementType.PARAMETER,
+  ElementType.RECORD_COMPONENT
 })
 @Retention(RetentionPolicy.RUNTIME)
 public @interface VirtualAddress {
