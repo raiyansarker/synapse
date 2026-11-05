@@ -1,12 +1,13 @@
-package synapse.upi.payment;
+package synapse.upi.payment.controller;
 
 import jakarta.validation.Valid;
-import synapse.upi.payment.workflow.PaymentWorkflow;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import synapse.upi.payment.Payment;
+import synapse.upi.payment.workflow.PaymentWorkflow;
 
 @RestController
 @RequestMapping("/payments")

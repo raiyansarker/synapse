@@ -1,4 +1,4 @@
-package synapse.upi.payment;
+package synapse.upi.payment.controller;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.Mockito.when;
@@ -16,6 +16,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
 import synapse.common.CommonHttpAutoConfiguration;
+import synapse.upi.payment.Payment;
 import synapse.upi.payment.workflow.PaymentWorkflow;
 
 @WebMvcTest(PaymentController.class)

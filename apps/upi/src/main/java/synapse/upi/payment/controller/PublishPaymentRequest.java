@@ -1,9 +1,10 @@
-package synapse.upi.payment;
+package synapse.upi.payment.controller;
 
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Positive;
 import java.math.BigDecimal;
+import synapse.common.validation.Va;
 
 /**
  * Body of {@code POST /payments}.

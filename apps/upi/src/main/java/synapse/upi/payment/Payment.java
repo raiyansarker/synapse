@@ -4,6 +4,7 @@ import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.Objects;
 import java.util.UUID;
+import synapse.common.validation.VaValidator;
 import synapse.upi.payment.statemachine.PaymentState;
 
 /**
