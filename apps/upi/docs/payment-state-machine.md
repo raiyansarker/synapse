@@ -1,6 +1,6 @@
 # Payment state machine
 
-The UPI service is the switch. A bank publishes a payment, the switch returns an atomic id, and every later step is a transition on that payment. This file is the handoff for that lifecycle.
+The UPI service is the ledger. The payee's bank publishes a payment, the ledger returns an atomic id, and every later step is a transition on that payment. This file is the handoff for that lifecycle.
 
 ## Library
 
@@ -11,22 +11,22 @@ Transitions are defined and enforced by [Spring Statemachine](https://docs.sprin
 | `spring-statemachine-core` | The dependency in `build.gradle.kts`. This is the module to keep. |
 | `PaymentStateMachineConfig` | `@EnableStateMachineFactory` configuration. States, end states, and external transitions live here. |
 | `PaymentStateMachine` | Builds one machine from `StateMachineFactory` per call, restores the payment's current state, sends one event, and returns the next state. |
-| `Payment` | The payment the switch tracks. `atomicId` is the id returned to the publishing bank. |
+| `Payment` | The payment the ledger tracks. `atomicId` is the id returned to the payee's bank. |
 
 `spring-statemachine-starter` and the JPA, Redis, and Mongo persistence modules are built for Spring Boot 3.5. This service is Spring Boot 4.1, and the Statemachine project has no Boot 4 support. Leave those modules out. When a payment is stored, store it as a normal JPA entity. The state machine is the transition engine, not the database.
 
 A denied event throws `IllegalPaymentTransitionException`. Spring Statemachine reports that as `StateMachineEventResult.ResultType.DENIED`.
 
-## What the switch does
+## What the ledger does
 
-1. A bank publishes a payment. The switch accepts it, mints an atomic id, and returns that id. The payment is `ACCEPTED`.
-2. The switch resolves the virtual addresses (`name@bank`, for example `raiyan@city`). The part after `@` is the bank handle. Resolution happens before any money moves. If a handle cannot be resolved, the payment ends as `RESOLUTION_FAILED`.
-3. The switch asks the payer's bank to authorize a debit. Balance, limits, and whether the payment may proceed are decided by that bank. On approval the payment is `AUTHORIZED` and the payer has been debited. On refusal it ends as `DECLINED`.
-4. The switch sends a credit request to the payee's bank. The payment is `CREDIT_PENDING` while that bank has not answered.
-5. If the payee's bank credits the payee, the payment is financially successful (`NOTIFYING`). The switch then sends the result to the payer's bank and the payee's bank. After both have been sent, the payment is `COMPLETED`.
-6. If the payee's bank rejects the credit, the payer has already been debited. The switch asks the payer's bank to reverse that debit (`REVERSAL_PENDING`). A successful reversal ends as `REVERSED`. A failed reversal ends as `REVERSAL_FAILED`: the payer is still debited and the payee was not credited.
+1. The payee's bank publishes a payment. The ledger accepts it, mints an atomic id, and returns that id. The payment is `ACCEPTED`.
+2. The ledger resolves the payer's virtual address (`name@bank`, for example `raiyan@city`). The part after `@` is the bank handle. Resolution happens before any money moves. If the handle cannot be resolved, the payment ends as `RESOLUTION_FAILED` and the ledger tells the payee's bank.
+3. The ledger asks the payer's bank to verify the payment and debit. Balance, limits, and whether the payment may proceed are decided by that bank. On approval the payment is `AUTHORIZED` and the payer has been debited. On refusal it ends as `DECLINED` and the ledger tells the payee's bank. The payer's bank notifies its user of a refusal itself, because it made that decision.
+4. The ledger sends a credit request to the payee's bank. The payment is `CREDIT_PENDING` while that bank has not answered.
+5. If the payee's bank credits the payee, that bank notifies its user. The payment is financially successful and moves to `ACKNOWLEDGING`. The ledger then acknowledges the payer's bank. That bank notifies its user. After the acknowledgement is accepted, the payment is `COMPLETED`.
+6. If the payee's bank rejects the credit, the payer has already been debited. The ledger asks the payer's bank to reverse that debit (`REVERSAL_PENDING`). A successful reversal ends as `REVERSED`. A failed reversal ends as `REVERSAL_FAILED`: the payer is still debited and the payee was not credited.
 
-The publishing bank and the payer's bank may be the same institution. Authorization is still its own step. The debit decision happens when the payer's bank answers, not when the payment is published.
+The payee's bank and the payer's bank may be the same institution. Verification is still its own step. The debit decision happens when the payer's bank answers, not when the payment is published.
 
 ## States
 
@@ -38,7 +38,7 @@ There are 11 states. Five of them are terminal, configured as Spring Statemachin
 | `AUTHORIZATION_PENDING` | The payer's bank | None | No |
 | `AUTHORIZED` | The switch, to send the credit | Payer debited | No |
 | `CREDIT_PENDING` | The payee's bank | Payer debited | No |
-| `NOTIFYING` | The switch, to tell both banks | Settled | No |
+| `ACKNOWLEDGING` | The payer's bank, for the completion acknowledgement | Settled | No |
 | `COMPLETED` | Nobody | Settled | Yes |
 | `RESOLUTION_FAILED` | Nobody | None | Yes |
 | `DECLINED` | Nobody | None | Yes |
@@ -48,7 +48,7 @@ There are 11 states. Five of them are terminal, configured as Spring Statemachin
 
 `AUTHORIZED` and `CREDIT_PENDING` are separate so a retry does not send a second credit. `AUTHORIZED` means the debit is done and the credit has not been sent. `CREDIT_PENDING` means the payee's bank has been asked and has not answered.
 
-`NOTIFYING` and `COMPLETED` are separate so a crash while telling the banks does not look like the credit is still in flight. Stay in `NOTIFYING` until both banks have been sent the success result, then apply `PARTIES_ADVISED`. A failed send is retried in place. It is not a new state, and it does not reverse the credit.
+`ACKNOWLEDGING` and `COMPLETED` are separate so a crash while acknowledging the payer's bank does not look like the credit is still in flight. The payee's bank notifies its own user when it accepts the credit, so the ledger does not send that notice. The ledger owes one acknowledgement to the payer's bank. Stay in `ACKNOWLEDGING` until that bank accepts it, then apply `PAYER_ACKNOWLEDGED`. A failed acknowledgement is retried. It does not reverse the credit, and it does not send a second notice to the payee's bank.
 
 ## Transitions
 
@@ -61,9 +61,9 @@ There are 10 external transitions. Anything not in this table is denied.
 | `AUTHORIZATION_PENDING` | `DEBIT_APPROVED` | `AUTHORIZED` | The payer's bank approved the debit |
 | `AUTHORIZATION_PENDING` | `DEBIT_DECLINED` | `DECLINED` | The payer's bank refused. It did not debit |
 | `AUTHORIZED` | `CREDIT_REQUESTED` | `CREDIT_PENDING` | The credit request was sent to the payee's bank |
-| `CREDIT_PENDING` | `CREDIT_APPROVED` | `NOTIFYING` | The payee's bank credited the payee |
+| `CREDIT_PENDING` | `CREDIT_APPROVED` | `ACKNOWLEDGING` | The payee's bank credited the payee and notifies its user |
 | `CREDIT_PENDING` | `CREDIT_REJECTED` | `REVERSAL_PENDING` | The payee's bank rejected the credit. A reversal is now required |
-| `NOTIFYING` | `PARTIES_ADVISED` | `COMPLETED` | The success result was sent to both the payer's bank and the payee's bank |
+| `ACKNOWLEDGING` | `PAYER_ACKNOWLEDGED` | `COMPLETED` | The payer's bank accepted the completion acknowledgement and notifies its user |
 | `REVERSAL_PENDING` | `REVERSAL_APPROVED` | `REVERSED` | The payer's bank reversed the debit |
 | `REVERSAL_PENDING` | `REVERSAL_REJECTED` | `REVERSAL_FAILED` | The payer's bank did not reverse the debit |
 
@@ -75,9 +75,9 @@ stateDiagram-v2
   AUTHORIZATION_PENDING --> AUTHORIZED: DEBIT_APPROVED
   AUTHORIZATION_PENDING --> DECLINED: DEBIT_DECLINED
   AUTHORIZED --> CREDIT_PENDING: CREDIT_REQUESTED
-  CREDIT_PENDING --> NOTIFYING: CREDIT_APPROVED
+  CREDIT_PENDING --> ACKNOWLEDGING: CREDIT_APPROVED
   CREDIT_PENDING --> REVERSAL_PENDING: CREDIT_REJECTED
-  NOTIFYING --> COMPLETED: PARTIES_ADVISED
+  ACKNOWLEDGING --> COMPLETED: PAYER_ACKNOWLEDGED
   REVERSAL_PENDING --> REVERSED: REVERSAL_APPROVED
   REVERSAL_PENDING --> REVERSAL_FAILED: REVERSAL_REJECTED
 ```
@@ -86,7 +86,7 @@ Apply an event only after the step it names has happened. If sending a request t
 
 `REVERSAL_PENDING` means a reversal is required. Send it if it has not been sent. The payer bank's answer is the only way out. A repeated reversal request for the same atomic id must be safe.
 
-On `DECLINED`, `RESOLUTION_FAILED`, and `REVERSED`, tell the publishing bank the payment failed. That advice is retried without a further transition. `REVERSAL_FAILED` is terminal inside this machine. Do not add an automatic loop back to `REVERSAL_PENDING`.
+On `DECLINED` and `RESOLUTION_FAILED`, tell the payee's bank. That report is retried without a further transition. The payee's bank already knows when it rejects the credit. The payer's bank already knows when it declines, and it learns a reversal from the reversal request. `REVERSAL_FAILED` is terminal inside this machine. Do not add an automatic loop back to `REVERSAL_PENDING`.
 
 ## Rules for the next change
 
@@ -95,7 +95,8 @@ On `DECLINED`, `RESOLUTION_FAILED`, and `REVERSED`, tell the publishing bank the
 - Resolve virtual addresses before asking for a debit. Credit only after `DEBIT_APPROVED`.
 - One atomic id per payment, minted in `Payment.accept`. Callers treat it as an opaque token.
 - A virtual address is `name@bank`: one `@`, with text on both sides.
-- Do not add a state per notified bank. Track delivery beside the payment and stay in `NOTIFYING` until both sends have succeeded.
+- The ledger does not notify users. The payee's bank notifies its user when it credits. The payer's bank notifies its user after it accepts the completion acknowledgement.
+- A failed acknowledgement stays in `ACKNOWLEDGING` and retries. Do not reverse a settled credit because the payer's bank has not yet been told.
 - Timeouts are not states. Map one onto `DEBIT_DECLINED` or `CREDIT_REJECTED` only once the bank outcome is known.
 - `PaymentStateMachine` restores state onto a fresh machine for each call. Do not cache one running machine and reuse it across payments.
 
@@ -113,12 +114,12 @@ DBOS runs in this process. It does not need its own database. With `dbos.datasou
 | wait for a debit reply | `DEBIT_APPROVED` or `DEBIT_DECLINED` |
 | `requestCredit` | `CREDIT_REQUESTED` |
 | wait for a credit reply | `CREDIT_APPROVED` or `CREDIT_REJECTED` |
-| `advise` for the payer, then the payee | `PARTIES_ADVISED` |
+| `acknowledgePayer` | `PAYER_ACKNOWLEDGED` |
 | `requestReversal` | the reversal reply, `REVERSAL_APPROVED` or `REVERSAL_REJECTED` |
 
 A bank reply enters through `PaymentWorkflow.signal`. `PaymentSignal` chooses the topic. The workflow applies that event with `PaymentStateMachine`. Calls inside the workflow go through the Spring proxy (`self`), because a direct `this` call skips the DBOS checkpoint.
 
-The step bodies do not call the banks yet. The directory, the debit, the credit, the reversal, and the two advice calls replace those bodies. The `@Step` boundary stays.
+The step bodies do not call the banks yet. The directory, the debit, the credit, the reversal, the payer acknowledgement, and the report back to the payee's bank replace those bodies. The `@Step` boundary stays. `acknowledgePayer` and `reportToPayee` retry on failure. A retry of `acknowledgePayer` does not credit or debit again.
 
 ## Not built yet
 
