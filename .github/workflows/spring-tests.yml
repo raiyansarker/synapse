@@ -5,6 +5,11 @@ name: Spring tests
 
 on:
   pull_request:
+    paths:
+      - apps/bank/**
+      - apps/upi/**
+      - libs/common/**
+      - .github/workflows/spring-tests.yml
   push:
     branches:
       - main

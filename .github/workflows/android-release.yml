@@ -1,7 +1,8 @@
 # Builds the Synapse Wallet release APK and publishes a GitHub Release.
 # The tag is the 7-character commit hash. This runs on every branch and
 # ignores tags, so the tag it creates does not start another run.
-# The built-in GITHUB_TOKEN is enough. contents: write is granted below.
+# When the branch has an open pull request, the APK download link is posted there.
+# The built-in GITHUB_TOKEN is enough. permissions are granted below.
 
 name: Android release
 
@@ -15,6 +16,7 @@ on:
 
 permissions:
   contents: write
+  pull-requests: write
 
 jobs:
   release:
@@ -74,3 +76,27 @@ jobs:
               --title "Synapse Wallet ${short}" \
               --notes "$notes"
           fi
+
+      - name: Post the download link on the pull request
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          short="${GITHUB_SHA::7}"
+          url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${short}/synapse-wallet-${short}.apk"
+          marker="<!-- synapse-android-apk -->"
+          body="$(printf '%s\nAndroid build `%s` is ready.\n\n[Download APK](%s)\n' "$marker" "$short" "$url")"
+          prs="$(gh pr list --head "${GITHUB_REF_NAME}" --state open --json number --jq '.[].number')"
+          if [ -z "$prs" ]; then
+            echo "No open pull request for ${GITHUB_REF_NAME}."
+            exit 0
+          fi
+          for pr in $prs; do
+            existing="$(gh api "repos/${GITHUB_REPOSITORY}/issues/${pr}/comments" --paginate \
+              --jq '.[] | select(.body | startswith("<!-- synapse-android-apk -->")) | .id' \
+              | awk 'NF { print; exit }')"
+            if [ -n "$existing" ]; then
+              gh api --method PATCH "repos/${GITHUB_REPOSITORY}/issues/comments/${existing}" -f body="$body" >/dev/null
+            else
+              gh pr comment "$pr" --body "$body"
+            fi
+          done
