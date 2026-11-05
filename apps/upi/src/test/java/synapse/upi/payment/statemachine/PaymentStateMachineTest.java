@@ -35,6 +35,9 @@ class PaymentStateMachineTest {
     payment = machine.apply(payment, PaymentEvent.PAYER_ACKNOWLEDGED);
     assertEquals(PaymentState.COMPLETED, payment.state());
     assertEquals(atomicId, payment.atomicId());
+    assertEquals("mina@city", payment.sva());
+    assertEquals("raiyan@city", payment.rva());
+    assertEquals(0, payment.amount().compareTo(new BigDecimal("1.00")));
     assertTrue(payment.state().terminal());
   }
 
@@ -118,7 +121,7 @@ class PaymentStateMachineTest {
   }
 
   @Test
-  void exposesElevenStatesAndTenTransitions() {
+  void hasElevenStatesAndElevenTransitions() {
     assertEquals(11, PaymentState.values().length);
 
     int transitions = 0;
