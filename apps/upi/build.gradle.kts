@@ -24,6 +24,8 @@ dependencies {
     implementation("org.springframework.boot:spring-boot-starter-restclient")
     implementation("org.springframework.boot:spring-boot-starter-webmvc")
     implementation("org.springframework.statemachine:spring-statemachine-core:4.0.2")
+    implementation("dev.dbos:transact-spring-boot-starter:1.2.0")
+    implementation("org.springframework.boot:spring-boot-starter-aspectj")
     compileOnly("org.projectlombok:lombok")
     runtimeOnly("org.postgresql:postgresql")
     annotationProcessor("org.projectlombok:lombok")
