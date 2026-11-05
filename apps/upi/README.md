@@ -67,3 +67,7 @@ From this directory:
 The app listens on port 8080. Set `SERVER_PORT` if that port is already taken.
 
 Running from an IDE does not load `.env`. Export the same three variables in the run configuration, or start the app with `./gradlew bootRun`.
+
+## Payment flow
+
+The switch tracks each payment with Spring Statemachine. States, transitions, and the rules for the next change are in [docs/payment-state-machine.md](docs/payment-state-machine.md).
