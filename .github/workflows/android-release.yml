@@ -1,6 +1,6 @@
 # Builds the Synapse Wallet release APK and publishes a GitHub Release.
-# The tag is the 7-character commit hash. This workflow listens only to
-# branch pushes, so the tag it creates does not start another run.
+# The tag is the 7-character commit hash. This runs on every branch and
+# ignores tags, so the tag it creates does not start another run.
 # The built-in GITHUB_TOKEN is enough. contents: write is granted below.
 
 name: Android release
@@ -8,7 +8,7 @@ name: Android release
 on:
   push:
     branches:
-      - main
+      - "**"
     paths:
       - apps/mobile/**
       - .github/workflows/android-release.yml
