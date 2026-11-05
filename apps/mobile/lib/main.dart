@@ -257,7 +257,7 @@ const Color kReceivedColor = Color(0xFF006A4E);
 const Color kSentColor = Color(0xFFF42A41);
 
 const String kDefaultAvatar =
-    'https://i.postimg.cc/QMYSkGhW/Gemini-Generated-Image-mqgujnmqgujnmqgu.jpg';
+    'https://i.postimg.cc/3xT2hYKL/profile-avatar.jpg';
 
 ImageProvider _avatarProvider(UserState u) => u.avatarPath != null
     ? FileImage(File(u.avatarPath!))
