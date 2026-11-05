@@ -70,8 +70,12 @@ public class PaymentWorkflow {
     PaymentEvent credit = awaitBank(PaymentSignal.CREDIT);
     payment = payment.withState(self.apply(payment, credit));
     if (credit == PaymentEvent.CREDIT_APPROVED) {
-      self.acknowledgePayer(payment);
-      return self.apply(payment, PaymentEvent.PAYER_ACKNOWLEDGED);
+      if (self.acknowledgePayer(payment)) {
+        return self.apply(payment, PaymentEvent.PAYER_ACKNOWLEDGED);
+      }
+      payment = payment.withState(self.apply(payment, PaymentEvent.PAYER_ACK_FAILED));
+      self.requestReversal(payment);
+      return self.apply(payment, awaitBank(PaymentSignal.REVERSAL));
     }
 
     self.requestReversal(payment);
@@ -91,16 +95,21 @@ public class PaymentWorkflow {
   @Step
   public void requestCredit(Payment payment) {}
 
-  /** Asks the payer's bank to reverse the debit. */
+  /**
+   * Asks the payer's bank to reverse the debit. Sent when the payee's bank rejects the credit, and
+   * when the payer acknowledgement fails after the credit has already succeeded.
+   */
   @Step
   public void requestReversal(Payment payment) {}
 
   /**
-   * Tells the payer's bank the credit succeeded. That bank notifies its user. The payee's bank
-   * already notified its user when it accepted the credit. A failure here retries this step only.
+   * Tells the payer's bank the credit succeeded. Returns false when that acknowledgement fails.
+   * The workflow then sends a reversal. A thrown exception is a crash, not a failed acknowledgement.
    */
-  @Step(maxAttempts = 25, intervalSeconds = 5, backOffRate = 2)
-  public void acknowledgePayer(Payment payment) {}
+  @Step
+  public boolean acknowledgePayer(Payment payment) {
+    return true;
+  }
 
   /** Tells the payee's bank the request ended before a credit. The payee bank notifies its user. */
   @Step(maxAttempts = 25, intervalSeconds = 5, backOffRate = 2)
