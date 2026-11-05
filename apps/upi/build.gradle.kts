@@ -22,6 +22,7 @@ dependencies {
     implementation("synapse:common:0.0.1-SNAPSHOT")
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.springframework.boot:spring-boot-starter-restclient")
+    implementation("org.springframework.boot:spring-boot-starter-validation")
     implementation("org.springframework.boot:spring-boot-starter-webmvc")
     implementation("org.springframework.statemachine:spring-statemachine-core:4.0.2")
     implementation("dev.dbos:transact-spring-boot-starter:1.2.0")

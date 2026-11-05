@@ -70,4 +70,6 @@ Running from an IDE does not load `.env`. Export the same three variables in the
 
 ## Payment flow
 
+A bank publishes a payment with `POST /payments`. The body is a virtual address, an amount, the payee's virtual address, and optional metadata. The atomic id comes back in `data.atomicId`.
+
 The switch tracks each payment with Spring Statemachine. DBOS runs the steps and waits for the banks. It stores its checkpoints in the `dbos` schema of the same Postgres database. States, transitions, and the workflow are in [docs/payment-state-machine.md](docs/payment-state-machine.md).

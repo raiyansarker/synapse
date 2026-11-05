@@ -11,7 +11,7 @@ Transitions are defined and enforced by [Spring Statemachine](https://docs.sprin
 | `spring-statemachine-core` | The dependency in `build.gradle.kts`. This is the module to keep. |
 | `PaymentStateMachineConfig` | `@EnableStateMachineFactory` configuration. States, end states, and external transitions live here. |
 | `PaymentStateMachine` | Builds one machine from `StateMachineFactory` per call, restores the payment's current state, sends one event, and returns the next state. |
-| `Payment` | The payment the ledger tracks. `atomicId` is the id returned to the payee's bank. |
+| `Payment` | The payment the ledger tracks. `atomicId` is the id returned to the payee's bank. `amount` and `metadata` travel with it. |
 
 `spring-statemachine-starter` and the JPA, Redis, and Mongo persistence modules are built for Spring Boot 3.5. This service is Spring Boot 4.1, and the Statemachine project has no Boot 4 support. Leave those modules out. When a payment is stored, store it as a normal JPA entity. The state machine is the transition engine, not the database.
 
@@ -124,6 +124,23 @@ A bank reply enters through `PaymentWorkflow.signal`. `PaymentSignal` chooses th
 
 The step bodies do not call the banks yet. The directory, the debit, the credit, the reversal, the payer acknowledgement, and the report back to the payee's bank replace those bodies. The `@Step` boundary stays. `acknowledgePayer` returns false when the payer's bank rejects the acknowledgement. That return sends the reversal. `reportToPayee` retries when the report itself fails.
 
+## Publish
+
+`POST /payments`. The payee's bank publishes a payment. The atomic id is minted by the ledger and returned in the response body. It is not a path segment.
+
+```json
+{
+  "virtualAddress": "mina@city",
+  "amount": "10.00",
+  "payeeVirtualAddress": "raiyan@city",
+  "metadata": { "note": "rent" }
+}
+```
+
+`virtualAddress` is the payer's virtual address, together with `amount`. `payeeVirtualAddress` is how the ledger finds the payee's bank. `metadata` may be omitted. The shared envelope wraps the response, and `data.atomicId` is the id the bank tracks.
+
+Later replies from a bank will carry that same id in the body. Those routes are not built yet.
+
 ## Not built yet
 
-No HTTP API, no payment table, no virtual-address directory, and no client that calls the payer or payee bank.
+No payment table, no virtual-address directory, and no client that calls the payer or payee bank. Debit, credit, and reversal replies are not routes yet.

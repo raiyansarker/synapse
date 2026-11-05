@@ -4,6 +4,8 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.math.BigDecimal;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.test.context.junit.jupiter.SpringJUnitConfig;
@@ -16,7 +18,7 @@ class PaymentStateMachineTest {
 
   @Test
   void happyPathKeepsTheAtomicId() {
-    Payment payment = Payment.accept("mina@city", "raiyan@city");
+    Payment payment = Payment.accept("mina@city", "raiyan@city", new BigDecimal("1.00"), Map.of());
     String atomicId = payment.atomicId();
 
     payment = machine.apply(payment, PaymentEvent.VPA_RESOLVED);
@@ -40,14 +42,14 @@ class PaymentStateMachineTest {
   @Test
   void unresolvedVirtualAddressEndsThePayment() {
     Payment payment = machine.apply(
-        Payment.accept("mina@city", "raiyan@city"), PaymentEvent.VPA_UNRESOLVED);
+        Payment.accept("mina@city", "raiyan@city", new BigDecimal("1.00"), Map.of()), PaymentEvent.VPA_UNRESOLVED);
 
     assertEquals(PaymentState.RESOLUTION_FAILED, payment.state());
   }
 
   @Test
   void declinedDebitEndsThePayment() {
-    Payment payment = Payment.accept("mina@city", "raiyan@city");
+    Payment payment = Payment.accept("mina@city", "raiyan@city", new BigDecimal("1.00"), Map.of());
     payment = machine.apply(payment, PaymentEvent.VPA_RESOLVED);
     payment = machine.apply(payment, PaymentEvent.DEBIT_DECLINED);
 
@@ -88,7 +90,7 @@ class PaymentStateMachineTest {
 
   @Test
   void rejectsAnEventTheCurrentStateDoesNotAllow() {
-    Payment payment = Payment.accept("mina@city", "raiyan@city");
+    Payment payment = Payment.accept("mina@city", "raiyan@city", new BigDecimal("1.00"), Map.of());
 
     IllegalPaymentTransitionException error = assertThrows(
         IllegalPaymentTransitionException.class,
@@ -125,7 +127,7 @@ class PaymentStateMachineTest {
   }
 
   private Payment credited() {
-    Payment payment = Payment.accept("mina@city", "raiyan@city");
+    Payment payment = Payment.accept("mina@city", "raiyan@city", new BigDecimal("1.00"), Map.of());
     payment = machine.apply(payment, PaymentEvent.VPA_RESOLVED);
     payment = machine.apply(payment, PaymentEvent.DEBIT_APPROVED);
     return machine.apply(payment, PaymentEvent.CREDIT_REQUESTED);
