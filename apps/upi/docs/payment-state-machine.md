@@ -99,6 +99,27 @@ On `DECLINED`, `RESOLUTION_FAILED`, and `REVERSED`, tell the publishing bank the
 - Timeouts are not states. Map one onto `DEBIT_DECLINED` or `CREDIT_REJECTED` only once the bank outcome is known.
 - `PaymentStateMachine` restores state onto a fresh machine for each call. Do not cache one running machine and reuse it across payments.
 
+## Durable execution
+
+DBOS runs in this process. It does not need its own database. With `dbos.datasource.url` unset, it uses `spring.datasource` and creates its tables in the `dbos` schema.
+
+`dbos.datasource.use-listen-notify` is false because the Neon pooler does not deliver `LISTEN`/`NOTIFY`. DBOS polls for bank replies. A direct connection to Postgres can turn that flag back on.
+
+`PaymentWorkflow.start` mints the atomic id and starts one workflow with that id. These steps are checkpointed, so a restart does not repeat a finished one:
+
+| Step | Then the workflow applies |
+| --- | --- |
+| `resolve` | `VPA_RESOLVED`, or `VPA_UNRESOLVED` when it returns false |
+| wait for a debit reply | `DEBIT_APPROVED` or `DEBIT_DECLINED` |
+| `requestCredit` | `CREDIT_REQUESTED` |
+| wait for a credit reply | `CREDIT_APPROVED` or `CREDIT_REJECTED` |
+| `advise` for the payer, then the payee | `PARTIES_ADVISED` |
+| `requestReversal` | the reversal reply, `REVERSAL_APPROVED` or `REVERSAL_REJECTED` |
+
+A bank reply enters through `PaymentWorkflow.signal`. `PaymentSignal` chooses the topic. The workflow applies that event with `PaymentStateMachine`. Calls inside the workflow go through the Spring proxy (`self`), because a direct `this` call skips the DBOS checkpoint.
+
+The step bodies do not call the banks yet. The directory, the debit, the credit, the reversal, and the two advice calls replace those bodies. The `@Step` boundary stays.
+
 ## Not built yet
 
-No HTTP API, no payment table, no virtual-address directory, and no client that calls the payer or payee bank. Those sit around this machine. They call `PaymentStateMachine.apply` with the event that matches what just happened.
+No HTTP API, no payment table, no virtual-address directory, and no client that calls the payer or payee bank.

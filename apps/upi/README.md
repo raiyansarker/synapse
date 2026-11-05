@@ -70,4 +70,4 @@ Running from an IDE does not load `.env`. Export the same three variables in the
 
 ## Payment flow
 
-The switch tracks each payment with Spring Statemachine. States, transitions, and the rules for the next change are in [docs/payment-state-machine.md](docs/payment-state-machine.md).
+The switch tracks each payment with Spring Statemachine. DBOS runs the steps and waits for the banks. It stores its checkpoints in the `dbos` schema of the same Postgres database. States, transitions, and the workflow are in [docs/payment-state-machine.md](docs/payment-state-machine.md).
