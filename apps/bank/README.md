@@ -54,6 +54,22 @@ SPRING_DATASOURCE_USERNAME=<user>
 SPRING_DATASOURCE_PASSWORD=<password>
 ```
 
+## Demo
+
+`GET /demo/accounts/{id}` uses the shared library in `libs/common`.
+
+Any id other than `missing` returns the account. The library wraps that return value:
+
+```json
+{
+  "success": true,
+  "data": { "id": "100", "bank": "city" },
+  "meta": { "requestId": "...", "timestamp": "..." }
+}
+```
+
+`GET /demo/accounts/missing` throws `NotFoundException`. The library renders that as HTTP 404 with `success` false and an `error` object. Send `X-Request-Id` to see that id come back in `meta`.
+
 ## Run
 
 From this directory:
