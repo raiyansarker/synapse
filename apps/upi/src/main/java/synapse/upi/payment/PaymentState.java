@@ -9,7 +9,7 @@ public enum PaymentState {
   AUTHORIZATION_PENDING(false),
   AUTHORIZED(false),
   CREDIT_PENDING(false),
-  NOTIFYING(false),
+  ACKNOWLEDGING(false),
   COMPLETED(true),
   RESOLUTION_FAILED(true),
   DECLINED(true),

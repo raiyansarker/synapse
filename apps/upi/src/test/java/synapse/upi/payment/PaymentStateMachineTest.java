@@ -29,9 +29,9 @@ class PaymentStateMachineTest {
     assertEquals(PaymentState.CREDIT_PENDING, payment.state());
 
     payment = machine.apply(payment, PaymentEvent.CREDIT_APPROVED);
-    assertEquals(PaymentState.NOTIFYING, payment.state());
+    assertEquals(PaymentState.ACKNOWLEDGING, payment.state());
 
-    payment = machine.apply(payment, PaymentEvent.PARTIES_ADVISED);
+    payment = machine.apply(payment, PaymentEvent.PAYER_ACKNOWLEDGED);
     assertEquals(PaymentState.COMPLETED, payment.state());
     assertEquals(atomicId, payment.atomicId());
     assertTrue(payment.state().terminal());
