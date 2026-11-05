@@ -257,7 +257,7 @@ const Color kReceivedColor = Color(0xFF006A4E);
 const Color kSentColor = Color(0xFFF42A41);
 
 const String kDefaultAvatar =
-    'https://upload.wikimedia.org/wikipedia/commons/0/03/Twitter_default_profile_400x400.png?utm_source=commons.wikimedia.org&utm_campaign=index&utm_content=original';
+    'https://i.postimg.cc/3xT2hYKL/profile-avatar.jpg';
 
 ImageProvider _avatarProvider(UserState u) => u.avatarPath != null
     ? FileImage(File(u.avatarPath!))
