@@ -5,7 +5,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.mobile"
+    namespace = "com.raiyansarker.synapse"
     compileSdk = 36 // <--- CHANGED TO 36
     ndkVersion = flutter.ndkVersion
 
@@ -15,7 +15,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.mobile"
+        applicationId = "com.raiyansarker.synapse"
         minSdk = flutter.minSdkVersion
         targetSdk = 36 // <--- CHANGED TO 36
         versionCode = flutter.versionCode
