@@ -23,5 +23,6 @@ class PaymentSignalTest {
     assertNull(PaymentSignal.topic(PaymentEvent.VPA_UNRESOLVED));
     assertNull(PaymentSignal.topic(PaymentEvent.CREDIT_REQUESTED));
     assertNull(PaymentSignal.topic(PaymentEvent.PAYER_ACKNOWLEDGED));
+    assertNull(PaymentSignal.topic(PaymentEvent.PAYER_ACK_FAILED));
   }
 }
