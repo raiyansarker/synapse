@@ -1,511 +1,314 @@
-// =============================================================================
-// ARCHITECTURE (Frontend Developers)
-// =============================================================================
-// State is handled with ValueNotifier + ValueListenableBuilder:
-//   darkModeNotifier  : bool       - light/dark theme toggle
-//   authNotifier      : bool       - logged-in gate (HomeShell vs LoginPage)
-//   userNotifier      : UserState  - profile name / id / avatar / biometrics
-//
-// Persistence is wired up in main() via listeners on those notifiers using
-// SharedPreferences. Keys used:
-//   dark_mode, user_name, user_bank_id,
-//   biometric_enabled, user_avatar
-//
-// Swapping mock data for real APIs:
-//   1. Replace `allTransactions` (and its derived `_recentTransactions`,
-//      `_receivedChart`, `_sentChart`, `totalBalance`) with a
-//      ValueNotifier<List<Tx>> fed by GET /transactions and GET /balance.
-//   2. Replace `_paymentCode` / `_qrPayload` in ReceivePage with values from
-//      GET /me/payment-code.
-//   3. The invoice PDF (_shareInvoice) is generated fully on-device — no
-//      backend endpoint needed for receipts.
-//
-// =============================================================================
-// BACKEND INTEGRATION GUIDE
-// =============================================================================
-// AUTH
-//   POST /auth/login
-//     Body: { "name": "...", "accountId": "..." }
-//     Resp: { "token": "jwt...",
-//             "user": { "id":"1","name":"...","accountId":"...",
-//                       "avatarUrl":"..." } }
-//   Store the token in secure storage; include as
-//   `Authorization: Bearer <token>` on subsequent requests.
-//
-// TRANSACTIONS
-//   GET /transactions?from=YYYY-MM&to=YYYY-MM
-//     Resp: [ { "id":"tx_1", "title":"...", "category":"Payment|Income|Bills|Subscription",
-//               "amount": -248.59, "createdAt": "2025-12-15T20:43:00Z" } ]
-//   GET /balance
-//     Resp: { "available": 1234.56, "currency": "BDT" }
-//
-// TRANSFER
-//   POST /transfer
-//     Body: { "recipientCode": "PAY-7K2D-9XFQ",
-//             "amount": 500.0,
-//             "biometricVerified": true }
-//     Resp: { "transactionId":"txn_...", "status":"completed" }
-//   Biometric verification itself happens entirely on-device via local_auth.
-//   The backend only needs the `biometricVerified` boolean flag.
-//
-// RECEIVE (own payment code + QR payload)
-//   GET /me/payment-code
-//     Resp: { "code": "PAY-7K2D-9XFQ",
-//             "qr": "wallet://pay?code=PAY-7K2D-9XFQ" }
-//
-// QR FORMAT
-//   Payments are expected as: wallet://pay?code=<CODE>
-//   The scanner extracts the `code` query param; plain codes are accepted too.
-// =============================================================================
-
+import 'dart:async';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:local_auth/local_auth.dart';
-import 'package:pdf/pdf.dart';
-import 'package:pdf/widgets.dart' as pw;
-import 'package:printing/printing.dart';
 import 'package:qr_flutter/qr_flutter.dart';
-import 'package:share_plus/share_plus.dart';
-import 'package:flutter_svg/flutter_svg.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:url_launcher/url_launcher.dart';
 
-// -----------------------------------------------------------------------------
-// Global state
-// -----------------------------------------------------------------------------
+// =============================================================================
+// DESIGN TOKENS (Strict Monochrome)
+// =============================================================================
+const Color kBlack = Color(0xFF1A1A1A);
+const Color kDarkCardStart = Color(0xFF333333);
+const Color kDarkCardEnd = Color(0xFF1A1A1A);
+const Color kWhite = Colors.white;
+const Color kBgGrey = Color(0xFFF3F4F6);
+const Color kTextGrey = Color(0xFF9CA3AF);
+const Color kRed = Color(0xFFE53935);
+const Color kGreen = Color(0xFF10B981);
 
-final ValueNotifier<bool> darkModeNotifier = ValueNotifier(false);
+const String kDefaultAvatar = 'https://i.postimg.cc/3xT2hYKL/profile-avatar.jpg';
+
+// =============================================================================
+// STATE & MODELS
+// =============================================================================
 final ValueNotifier<bool> authNotifier = ValueNotifier(false);
-final ValueNotifier<UserState> userNotifier =
-    ValueNotifier(const UserState(name: 'User'));
-
+final ValueNotifier<UserState> userNotifier = ValueNotifier(const UserState(name: 'Bardia', email: ''));
 final LocalAuthentication _localAuth = LocalAuthentication();
+String _mockUserPassword = 'password';
 
-// -----------------------------------------------------------------------------
-// Models & mock data
-// -----------------------------------------------------------------------------
+// --- DYNAMIC DATA NOTIFIERS ---
+final ValueNotifier<List<Tx>> transactionsNotifier = ValueNotifier([]);
+final ValueNotifier<double> balanceNotifier = ValueNotifier(0.0);
+
+// --- LOAN STATE ---
+final ValueNotifier<double> loanNotifier = ValueNotifier(0.0);
+final ValueNotifier<DateTime?> loanDueDateNotifier = ValueNotifier(null);
+
+// --- SUBSCRIPTION & PRO STATE ---
+final ValueNotifier<bool> isProNotifier = ValueNotifier(false);
+final ValueNotifier<List<String>> purchasedSubsNotifier = ValueNotifier([]);
+
+// --- SAVINGS STATE ---
+final ValueNotifier<double> savingsBalanceNotifier = ValueNotifier(0.0);
+final ValueNotifier<bool> savingsEnabledNotifier = ValueNotifier(false);
+final ValueNotifier<DateTime?> savingsStartDateNotifier = ValueNotifier(null);
+final ValueNotifier<DateTime?> lastSavingsCutNotifier = ValueNotifier(null);
+final ValueNotifier<bool> missedSavingsNotifier = ValueNotifier(false);
 
 class UserState {
   final String name;
+  final String email;
   final String? avatarPath;
-  final String bankId;
   final bool isBiometricEnabled;
 
-  const UserState({
-    required this.name,
-    this.avatarPath,
-    this.bankId = '',
-    this.isBiometricEnabled = false,
-  });
+  const UserState({required this.name, required this.email, this.avatarPath, this.isBiometricEnabled = false});
 
-  UserState copyWith({
-    String? name,
-    String? avatarPath,
-    String? bankId,
-    bool? isBiometricEnabled,
-  }) =>
+  UserState copyWith({String? name, String? email, String? avatarPath, bool? isBiometricEnabled}) =>
       UserState(
         name: name ?? this.name,
+        email: email ?? this.email,
         avatarPath: avatarPath ?? this.avatarPath,
-        bankId: bankId ?? this.bankId,
         isBiometricEnabled: isBiometricEnabled ?? this.isBiometricEnabled,
       );
 }
 
 class Tx {
+  final String id;
   final String title;
   final String subtitle;
   final double amount;
   final String time;
-  final DateTime date;
   final IconData icon;
+  final bool isIncome;
 
-  const Tx(this.title, this.subtitle, this.amount, this.time, this.date,
-      this.icon);
+  const Tx({
+    required this.id,
+    required this.title,
+    required this.subtitle,
+    required this.amount,
+    required this.time,
+    required this.icon,
+    this.isIncome = false,
+  });
 }
 
-final List<Tx> allTransactions = [
-  Tx('Shopping at Daraz', 'Payment', -248.59, '08:43 pm',
-      DateTime(2025, 12, 15, 20, 43), Icons.shopping_bag_outlined),
-  Tx('DIU Transport', 'Payment', -18.00, '08:43 pm',
-      DateTime(2025, 12, 14, 20, 43), Icons.directions_car_outlined),
-  Tx('Send Money to Raiyan', 'Payment', -145.98, '08:43 pm',
-      DateTime(2025, 12, 12, 20, 43), Icons.send_outlined),
-  Tx('Freelance Payment', 'Income', 850.00, '10:20 am',
-      DateTime(2025, 12, 10, 10, 20), Icons.payments_outlined),
-  Tx('Grocery Store', 'Payment', -67.40, '07:12 pm',
-      DateTime(2025, 12, 5, 19, 12), Icons.local_grocery_store_outlined),
-  Tx('Coffee Shop', 'Payment', -8.75, '10:05 am',
-      DateTime(2025, 11, 20, 10, 5), Icons.local_cafe_outlined),
-  Tx('Electricity Bill', 'Bills', -42.10, '11:30 am',
-      DateTime(2025, 11, 5, 11, 30), Icons.bolt_outlined),
-  Tx('Salary Deposit', 'Income', 3200.00, '09:15 am',
-      DateTime(2025, 11, 1, 9, 15), Icons.work_outline),
-  Tx('Netflix', 'Subscription', -15.99, '01:00 am',
-      DateTime(2025, 10, 2, 1, 0), Icons.movie_outlined),
-  Tx('Salary Deposit', 'Income', 3200.00, '09:15 am',
-      DateTime(2025, 10, 1, 9, 15), Icons.work_outline),
-  Tx('Restaurant', 'Payment', -84.20, '08:30 pm',
-      DateTime(2025, 9, 15, 20, 30), Icons.restaurant_outlined),
-  Tx('Salary Deposit', 'Income', 3200.00, '09:15 am',
-      DateTime(2025, 9, 1, 9, 15), Icons.work_outline),
-  Tx('Online Shopping', 'Payment', -120.00, '03:00 pm',
-      DateTime(2025, 8, 12, 15, 0), Icons.shopping_cart_outlined),
-  Tx('Salary Deposit', 'Income', 3200.00, '09:15 am',
-      DateTime(2025, 8, 1, 9, 15), Icons.work_outline),
-  Tx('Salary Deposit', 'Income', 3200.00, '09:15 am',
-      DateTime(2025, 7, 1, 9, 15), Icons.work_outline),
-  Tx('Gym Membership', 'Bills', -50.00, '10:00 am',
-      DateTime(2025, 6, 5, 10, 0), Icons.fitness_center),
-  Tx('Salary Deposit', 'Income', 3200.00, '09:15 am',
-      DateTime(2025, 6, 1, 9, 15), Icons.work_outline),
-  Tx('Salary Deposit', 'Income', 3200.00, '09:15 am',
-      DateTime(2025, 5, 1, 9, 15), Icons.work_outline),
+class SubModel {
+  final String name;
+  final IconData icon;
+  final double price;
+  final String emailLabel;
+  final List<String> benefits;
+
+  const SubModel(this.name, this.icon, this.price, this.emailLabel, this.benefits);
+}
+
+final List<SubModel> availableSubs = [
+  const SubModel('Synapse Pro', Icons.stars, 500.0, 'Synapse Account Email', [
+    '5% Cashback on all bills',
+    'Higher loan limit (৳5,000)',
+    'Priority customer support',
+    'Exclusive partner discounts'
+  ]),
+  const SubModel('Netflix', Icons.movie_filter, 650.0, 'Netflix Account Email', [
+    'Unlimited movies and TV shows',
+    'Ad-free streaming',
+    'Watch on any device',
+    'Download and watch offline'
+  ]),
+  const SubModel('Spotify', Icons.music_note, 199.0, 'Spotify Username', [
+    'Listen to music ad-free',
+    'Play any song, any time',
+    'Offline mode',
+    'High-quality audio'
+  ]),
+  const SubModel('Claude Pro', Icons.smart_toy, 1600.0, 'Claude Account Email', [
+    '5x more usage than free plan',
+    'Access to latest models',
+    'Priority access during high traffic',
+    'Early access to new features'
+  ]),
+  const SubModel('Google One', Icons.cloud, 150.0, 'Google Email', [
+    '100 GB of cloud storage',
+    'Share with up to 5 family members',
+    'Extra member benefits',
+    '24/7 expert support'
+  ]),
+  const SubModel('Crunchyroll', Icons.play_circle_fill, 400.0, 'Crunchyroll Email', [
+    'Ad-free anime streaming',
+    'New episodes one hour after Japan',
+    'Access to manga library',
+    'Offline viewing'
+  ]),
 ];
 
-// Precomputed once from the mock list — remove when switching to live APIs.
-final double totalBalance =
-    allTransactions.fold(0.0, (sum, t) => sum + t.amount);
-final List<Tx> _recentTransactions = allTransactions.take(4).toList();
-
-List<double> _computeMonthlyReceived() {
-  final r = List<double>.filled(8, 0);
-  for (final t in allTransactions) {
-    if (t.amount > 0 && t.date.month >= 5 && t.date.month <= 12) {
-      r[t.date.month - 5] += t.amount;
-    }
-  }
-  return r;
+class AdItem {
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final VoidCallback onTap;
+  const AdItem({required this.title, required this.subtitle, required this.icon, required this.onTap});
 }
 
-List<double> _computeMonthlySent() {
-  final r = List<double>.filled(8, 0);
-  for (final t in allTransactions) {
-    if (t.amount < 0 && t.date.month >= 5 && t.date.month <= 12) {
-      r[t.date.month - 5] += -t.amount;
-    }
+// =============================================================================
+// BACKEND INTEGRATION HELPERS
+// =============================================================================
+void _addTransaction(Tx tx) {
+  transactionsNotifier.value = [tx, ...transactionsNotifier.value];
+  if (tx.isIncome) {
+    balanceNotifier.value += tx.amount;
+  } else {
+    balanceNotifier.value -= tx.amount.abs();
   }
-  return r;
 }
 
-final List<double> _receivedChart = _computeMonthlyReceived();
-final List<double> _sentChart = _computeMonthlySent();
+void _checkLoanAutoDeduction() {
+  final dueDate = loanDueDateNotifier.value;
+  final loanAmt = loanNotifier.value;
 
-// -----------------------------------------------------------------------------
-// Formatting helpers
-// -----------------------------------------------------------------------------
+  if (loanAmt > 0 && dueDate != null && DateTime.now().isAfter(dueDate)) {
+    _addTransaction(Tx(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      title: 'Auto Loan Deduction',
+      subtitle: 'Loan Repayment',
+      amount: -loanAmt,
+      time: 'Just now',
+      icon: Icons.warning_amber_rounded,
+      isIncome: false,
+    ));
+    loanNotifier.value = 0;
+    loanDueDateNotifier.value = null;
+  }
+}
 
-String formatMoney(double v, {bool showSign = false}) {
-  final isNeg = v < 0;
-  final abs = v.abs();
-  final parts = abs.toStringAsFixed(2).split('.');
+void _checkSavingsAutoCut() {
+  if (!savingsEnabledNotifier.value) return;
+  final lastCut = lastSavingsCutNotifier.value;
+  if (lastCut == null) return;
+
+  final daysSinceLastCut = DateTime.now().difference(lastCut).inDays;
+  
+  if (daysSinceLastCut >= 30) {
+    double amtToCut = missedSavingsNotifier.value ? 210.0 : 100.0;
+    
+    if (balanceNotifier.value >= amtToCut) {
+      _addTransaction(Tx(
+        id: DateTime.now().millisecondsSinceEpoch.toString(),
+        title: 'Savings Auto-Save',
+        subtitle: 'Monthly Deposit',
+        amount: -amtToCut,
+        time: 'Just now',
+        icon: Icons.savings,
+        isIncome: false,
+      ));
+      savingsBalanceNotifier.value += amtToCut;
+      missedSavingsNotifier.value = false;
+    } else {
+      missedSavingsNotifier.value = true;
+    }
+    lastSavingsCutNotifier.value = DateTime.now();
+  }
+}
+
+// =============================================================================
+// HELPERS
+// =============================================================================
+String formatMoney(double v) {
+  final abs = v.abs().toStringAsFixed(2);
+  final parts = abs.split('.');
   final intPart = parts[0];
   final buf = StringBuffer();
   for (int i = 0; i < intPart.length; i++) {
     if (i > 0 && (intPart.length - i) % 3 == 0) buf.write(',');
     buf.write(intPart[i]);
   }
-  String sign = '';
-  if (isNeg) {
-    sign = '-';
-  } else if (showSign && v > 0) {
-    sign = '+';
-  }
-  return '$sign৳${buf.toString()}.${parts[1]}';
+  return '৳${v < 0 ? '-' : ''}${buf.toString()}.${parts[1]}';
 }
 
-String _formatK(double v) =>
-    v >= 1000 ? '${(v / 1000).toStringAsFixed(1)}k' : v.toStringAsFixed(0);
-
-// -----------------------------------------------------------------------------
-// Theme tokens
-// -----------------------------------------------------------------------------
-
-bool _isDark(BuildContext c) => Theme.of(c).brightness == Brightness.dark;
-
-Color _pageTop(BuildContext c) =>
-    _isDark(c) ? const Color(0xFF0D1A14) : const Color(0xFFE8F5E9);
-Color _pageBottom(BuildContext c) =>
-    _isDark(c) ? const Color(0xFF050A08) : const Color(0xFFF9FBE7);
-Color _surfaceCard(BuildContext c) =>
-    _isDark(c) ? const Color(0xFF142620) : Colors.white;
-Color _heroCard(BuildContext c) =>
-    _isDark(c) ? const Color(0xFF1A3029) : Colors.white;
-Color _onHero(BuildContext c) =>
-    _isDark(c) ? Colors.white : const Color(0xFF1A1A1A);
-Color _onHeroMuted(BuildContext c) =>
-    _isDark(c) ? Colors.grey[400]! : Colors.grey[700]!;
-Color _onHeroSubtle(BuildContext c) => _isDark(c)
-    ? Colors.white.withValues(alpha: 0.1)
-    : Colors.black.withValues(alpha: 0.06);
-Color _buttonBg(BuildContext c) =>
-    _isDark(c) ? const Color(0xFF00A86B) : const Color(0xFF006A4E);
-Color _onButton(BuildContext c) => Colors.white;
-Color _muted(BuildContext c) =>
-    _isDark(c) ? Colors.grey[400]! : Colors.grey[700]!;
-Color _subtle(BuildContext c) =>
-    _isDark(c) ? Colors.grey[500]! : Colors.grey[600]!;
-Color _iconBg(BuildContext c) =>
-    _isDark(c) ? const Color(0xFF1F382F) : const Color(0xFFE8F5E9);
-Color _shadow(BuildContext c) =>
-    Colors.black.withValues(alpha: _isDark(c) ? 0.4 : 0.06);
-
-const Color kReceivedColor = Color(0xFF006A4E);
-const Color kSentColor = Color(0xFFF42A41);
-
-const String kDefaultAvatar =
-    'https://i.postimg.cc/3xT2hYKL/profile-avatar.jpg';
+String formatDate(DateTime date) {
+  return '${date.day}/${date.month}/${date.year}';
+}
 
 ImageProvider _avatarProvider(UserState u) => u.avatarPath != null
     ? FileImage(File(u.avatarPath!))
     : const NetworkImage(kDefaultAvatar) as ImageProvider;
 
-// -----------------------------------------------------------------------------
-// Biometric gate
-// -----------------------------------------------------------------------------
-// Returns true when the user authenticates (or explicitly simulates success
-// on devices without a biometric sensor). Backend only needs the bool result.
 Future<bool> _authenticateBiometrics(BuildContext context) async {
   try {
     final withBio = await _localAuth.canCheckBiometrics;
     final supported = withBio || await _localAuth.isDeviceSupported();
-
-    if (!supported) {
-      return await showDialog<bool>(
-            context: context,
-            builder: (ctx) => AlertDialog(
-              title: const Text('Biometric Simulation'),
-              content: const Text(
-                  'Biometrics not available on this device. Simulate fingerprint/face ID?'),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx, false),
-                  child: const Text('Cancel'),
-                ),
-                TextButton(
-                  onPressed: () => Navigator.pop(ctx, true),
-                  child: const Text('Simulate Success'),
-                ),
-              ],
-            ),
-          ) ??
-          false;
-    }
+    if (!supported) return true; 
 
     return await _localAuth.authenticate(
-      localizedReason: 'Please authenticate to proceed',
-      options:
-          const AuthenticationOptions(stickyAuth: true, biometricOnly: true),
+      localizedReason: 'Authenticate to proceed',
+      options: const AuthenticationOptions(stickyAuth: true, biometricOnly: true),
     );
   } catch (_) {
     return false;
   }
 }
 
-// -----------------------------------------------------------------------------
-// PDF invoice (fully on-device, no backend endpoint required)
-// -----------------------------------------------------------------------------
-
-Future<void> _shareInvoice({
-  required String title,
-  required String subtitle,
-  required String amount,
-  required String time,
-}) async {
-  final doc = pw.Document();
-  final now = DateTime.now();
-  final dateStr =
-      '${now.day.toString().padLeft(2, '0')}/${now.month.toString().padLeft(2, '0')}/${now.year}';
-  final userName = userNotifier.value.name;
-  // Standard PDF fonts don't include the Taka glyph — replace for the PDF only.
-  final safeAmount = amount.replaceAll('৳', 'BDT ');
-
-  doc.addPage(
-    pw.Page(
-      pageFormat: PdfPageFormat.a4,
-      margin: const pw.EdgeInsets.all(40),
-      build: (ctx) => pw.Column(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        children: [
-          pw.Text('INVOICE',
-              style: pw.TextStyle(
-                  fontSize: 32, fontWeight: pw.FontWeight.bold)),
-          pw.SizedBox(height: 4),
-          pw.Text('Transaction Receipt',
-              style:
-                  const pw.TextStyle(fontSize: 12, color: PdfColors.grey700)),
-          pw.Divider(height: 32, thickness: 1, color: PdfColors.grey400),
-          pw.SizedBox(height: 8),
-          pw.Text('Invoice No: INV-${now.millisecondsSinceEpoch}',
-              style: const pw.TextStyle(fontSize: 11)),
-          pw.SizedBox(height: 4),
-          pw.Text('Date: $dateStr  $time',
-              style: const pw.TextStyle(fontSize: 11)),
-          pw.SizedBox(height: 32),
-          pw.Text('BILL TO',
-              style: pw.TextStyle(
-                  fontSize: 11,
-                  fontWeight: pw.FontWeight.bold,
-                  color: PdfColors.grey700)),
-          pw.SizedBox(height: 6),
-          pw.Text(userName,
-              style: pw.TextStyle(
-                  fontSize: 14, fontWeight: pw.FontWeight.bold)),
-          pw.SizedBox(height: 32),
-          pw.Container(
-            padding: const pw.EdgeInsets.all(16),
-            decoration: pw.BoxDecoration(
-              border: pw.Border.all(color: PdfColors.grey400),
-              borderRadius: pw.BorderRadius.circular(6),
-            ),
-            child: pw.Column(
-              children: [
-                pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                  children: [
-                    pw.Text('Description',
-                        style: pw.TextStyle(
-                            fontWeight: pw.FontWeight.bold, fontSize: 11)),
-                    pw.Text('Amount',
-                        style: pw.TextStyle(
-                            fontWeight: pw.FontWeight.bold, fontSize: 11)),
-                  ],
-                ),
-                pw.SizedBox(height: 12),
-                pw.Divider(height: 1, color: PdfColors.grey300),
-                pw.SizedBox(height: 12),
-                pw.Row(
-                  mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-                  children: [
-                    pw.Column(
-                      crossAxisAlignment: pw.CrossAxisAlignment.start,
-                      children: [
-                        pw.Text(title,
-                            style: const pw.TextStyle(fontSize: 12)),
-                        pw.SizedBox(height: 2),
-                        pw.Text(subtitle,
-                            style: const pw.TextStyle(
-                                fontSize: 10, color: PdfColors.grey700)),
-                      ],
-                    ),
-                    pw.Text(safeAmount,
-                        style: pw.TextStyle(
-                            fontSize: 12, fontWeight: pw.FontWeight.bold)),
-                  ],
-                ),
-              ],
-            ),
+Future<bool> _showPasswordDialog(BuildContext context) async {
+  final passCtrl = TextEditingController();
+  final result = await showDialog<bool>(
+    context: context,
+    builder: (ctx) => AlertDialog(
+      title: const Text('Security Check'),
+      content: RepaintBoundary(
+        child: TextField(
+          controller: passCtrl,
+          obscureText: true,
+          decoration: const InputDecoration(
+            hintText: 'Enter password (try: password)',
+            hintStyle: TextStyle(color: kTextGrey),
           ),
-          pw.SizedBox(height: 24),
-          pw.Container(
-            padding: const pw.EdgeInsets.all(16),
-            decoration: pw.BoxDecoration(
-              color: PdfColors.grey200,
-              borderRadius: pw.BorderRadius.circular(6),
-            ),
-            child: pw.Row(
-              mainAxisAlignment: pw.MainAxisAlignment.spaceBetween,
-              children: [
-                pw.Text('TOTAL',
-                    style: pw.TextStyle(
-                        fontWeight: pw.FontWeight.bold, fontSize: 13)),
-                pw.Text(safeAmount,
-                    style: pw.TextStyle(
-                        fontWeight: pw.FontWeight.bold, fontSize: 18)),
-              ],
-            ),
-          ),
-          pw.SizedBox(height: 40),
-          pw.Divider(color: PdfColors.grey400),
-          pw.SizedBox(height: 8),
-          pw.Text('Thank you for your business.',
-              style:
-                  const pw.TextStyle(fontSize: 11, color: PdfColors.grey700)),
-          pw.SizedBox(height: 4),
-          pw.Text('This is a system-generated invoice.',
-              style:
-                  const pw.TextStyle(fontSize: 9, color: PdfColors.grey600)),
-        ],
+        ),
       ),
+      actions: [
+        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
+        TextButton(
+          onPressed: () {
+            if (passCtrl.text == _mockUserPassword) {
+              Navigator.pop(ctx, true);
+            } else {
+              ScaffoldMessenger.of(ctx).showSnackBar(const SnackBar(content: Text('Incorrect password')));
+            }
+          },
+          child: const Text('Unlock'),
+        ),
+      ],
     ),
   );
-
-  final bytes = await doc.save();
-  await Printing.sharePdf(
-      bytes: bytes, filename: 'invoice_${now.millisecondsSinceEpoch}.pdf');
+  passCtrl.dispose();
+  return result ?? false;
 }
-
-// -----------------------------------------------------------------------------
-// Entry point
-// -----------------------------------------------------------------------------
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-
-  final prefs = await SharedPreferences.getInstance();
-  darkModeNotifier.value = prefs.getBool('dark_mode') ?? false;
-
-  darkModeNotifier.addListener(() async {
-    final p = await SharedPreferences.getInstance();
-    await p.setBool('dark_mode', darkModeNotifier.value);
-  });
-
   userNotifier.addListener(() async {
     final p = await SharedPreferences.getInstance();
     final u = userNotifier.value;
     await p.setString('user_name', u.name);
-    await p.setString('user_bank_id', u.bankId);
+    await p.setString('user_email', u.email);
     await p.setBool('biometric_enabled', u.isBiometricEnabled);
     if (u.avatarPath != null) await p.setString('user_avatar', u.avatarPath!);
   });
-
   runApp(const MainApp());
 }
 
-// -----------------------------------------------------------------------------
-// App root
-// -----------------------------------------------------------------------------
-
 class MainApp extends StatelessWidget {
   const MainApp({super.key});
-
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<bool>(
-      valueListenable: darkModeNotifier,
-      builder: (context, isDark, _) {
-        return MaterialApp(
-          debugShowCheckedModeBanner: false,
-          themeMode: isDark ? ThemeMode.dark : ThemeMode.light,
-          theme: ThemeData(
-            useMaterial3: true,
-            colorSchemeSeed: const Color(0xFF006A4E),
-            brightness: Brightness.light,
-            scaffoldBackgroundColor: const Color(0xFFE8F5E9),
-          ),
-          darkTheme: ThemeData(
-            useMaterial3: true,
-            colorSchemeSeed: const Color(0xFF00A86B),
-            brightness: Brightness.dark,
-            scaffoldBackgroundColor: const Color(0xFF0D1A14),
-          ),
-          home: const AuthWrapper(),
-        );
-      },
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: ThemeData(
+        useMaterial3: true,
+        scaffoldBackgroundColor: kBgGrey,
+        colorScheme: const ColorScheme.light(primary: kBlack, surface: kWhite),
+      ),
+      home: const AuthWrapper(),
     );
   }
 }
 
-// -----------------------------------------------------------------------------
-// Auth wrapper — decides LoginPage vs HomeShell, with quick biometric login.
-// -----------------------------------------------------------------------------
-
 class AuthWrapper extends StatefulWidget {
   const AuthWrapper({super.key});
-
   @override
   State<AuthWrapper> createState() => _AuthWrapperState();
 }
@@ -523,106 +326,87 @@ class _AuthWrapperState extends State<AuthWrapper> {
     try {
       final prefs = await SharedPreferences.getInstance();
       final name = prefs.getString('user_name');
-      final bankId = prefs.getString('user_bank_id');
+      final email = prefs.getString('user_email');
       final isBioEnabled = prefs.getBool('biometric_enabled') ?? false;
       final avatar = prefs.getString('user_avatar');
 
-      if (name != null && bankId != null && name != 'User') {
-        userNotifier.value = UserState(
-          name: name,
-          bankId: bankId,
-          isBiometricEnabled: isBioEnabled,
-          avatarPath: avatar,
-        );
-
+      if (name != null && email != null && name != 'User') {
+        userNotifier.value = UserState(name: name, email: email, isBiometricEnabled: isBioEnabled, avatarPath: avatar);
         if (isBioEnabled) {
           final success = await _localAuth.authenticate(
-            localizedReason: 'Quick Login via Biometrics',
-            options: const AuthenticationOptions(
-                stickyAuth: true, biometricOnly: true),
+            localizedReason: 'Quick Login',
+            options: const AuthenticationOptions(stickyAuth: true, biometricOnly: true),
           );
           if (success) authNotifier.value = true;
         }
       }
     } catch (e) {
-      debugPrint('Error loading prefs: $e');
+      debugPrint('Error: $e');
     }
-
-    if (mounted) setState(() => _isLoading = false);
+    
+    if (mounted) {
+      setState(() => _isLoading = false);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _checkLoanAutoDeduction();
+        _checkSavingsAutoCut();
+      });
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_isLoading) {
-      return const Scaffold(
-        body: Center(child: CircularProgressIndicator()),
-      );
-    }
-
+    if (_isLoading) return const Scaffold(body: Center(child: CircularProgressIndicator(color: kBlack)));
     return ValueListenableBuilder<bool>(
       valueListenable: authNotifier,
-      builder: (context, _, __) =>
-          authNotifier.value ? const HomeShell() : const LoginPage(),
+      builder: (context, _, __) => authNotifier.value ? const HomePage() : const LoginPage(),
     );
   }
 }
 
-// -----------------------------------------------------------------------------
-// Login page
-// -----------------------------------------------------------------------------
-// Mock flow: waits 2s then accepts any name + accountId with >= 5 chars.
-// To hook up POST /auth/login, replace the body of `_login()` with the API
-// call and set `userNotifier.value` + `authNotifier.value = true` on success.
-// -----------------------------------------------------------------------------
-
+// =============================================================================
+// LOGIN PAGE
+// =============================================================================
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
-
   @override
   State<LoginPage> createState() => _LoginPageState();
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final _nameController = TextEditingController();
-  final _bankIdController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
   bool _isLoading = false;
 
   @override
   void dispose() {
-    _nameController.dispose();
-    _bankIdController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
     super.dispose();
   }
 
   Future<void> _login() async {
-    if (_nameController.text.trim().isEmpty ||
-        _bankIdController.text.trim().isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter all details')),
-      );
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+
+    if (email.isEmpty || password.isEmpty || !email.contains('@')) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter valid credentials')));
       return;
     }
 
     FocusScope.of(context).unfocus();
     setState(() => _isLoading = true);
-
-    // TODO(backend): replace with POST /auth/login + secure token storage.
     await Future.delayed(const Duration(seconds: 2));
 
     if (!mounted) return;
     setState(() => _isLoading = false);
 
-    if (_bankIdController.text.trim().length < 5) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Invalid Account ID. No account found.')),
-      );
-      return;
-    }
-
+    _mockUserPassword = password;
     final current = userNotifier.value;
+    final derivedName = email.split('@').first;
+    
     userNotifier.value = UserState(
-      name: _nameController.text.trim(),
-      bankId: _bankIdController.text.trim(),
+      name: derivedName.isNotEmpty ? derivedName : 'Bardia',
+      email: email,
       isBiometricEnabled: current.isBiometricEnabled,
       avatarPath: current.avatarPath,
     );
@@ -631,125 +415,44 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [_pageTop(context), _pageBottom(context)],
-        ),
-      ),
-      child: Scaffold(
-        backgroundColor: Colors.transparent,
-        body: SafeArea(
-          child: Center(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 30),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Center(
-                    child: Container(
-                      height: 100,
-                      width: 100,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(24),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.1),
-                            blurRadius: 20,
-                            offset: const Offset(0, 10),
-                          ),
-                        ],
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(24),
-                        child: Padding(
-                          padding: const EdgeInsets.all(20),
-                          child: ShaderMask(
-                            blendMode: BlendMode.srcIn,
-                            shaderCallback: (bounds) {
-                              return const LinearGradient(
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                                colors: [
-                                  Color(0xFF006A4E),
-                                  Color(0xFF00A86B),
-                                  Color(0xFFF42A41),
-                                ],
-                              ).createShader(bounds);
-                            },
-                            child: SvgPicture.asset(
-                              'assets/images/logo.svg',
-                              fit: BoxFit.contain,
-                              placeholderBuilder: (_) => const Icon(
-                                Icons.account_balance_wallet,
-                                color: Color(0xFF006A4E),
-                                size: 50,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
+    return Scaffold(
+      backgroundColor: kBgGrey,
+      body: SafeArea(
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.symmetric(horizontal: 30),
+            child: Column(
+              children: [
+                Container(
+                  height: 90, width: 90,
+                  decoration: BoxDecoration(color: kBlack, borderRadius: BorderRadius.circular(24)),
+                  child: const Icon(Icons.account_balance, color: kWhite, size: 45),
+                ),
+                const SizedBox(height: 24),
+                const Text('Welcome Back', style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: kBlack)),
+                const SizedBox(height: 8),
+                const Text('Sign in to continue', style: TextStyle(color: kTextGrey)),
+                const SizedBox(height: 40),
+                _LoginField(controller: _emailController, hint: 'Email Address', icon: Icons.email_outlined, keyboardType: TextInputType.emailAddress),
+                const SizedBox(height: 16),
+                _LoginField(controller: _passwordController, hint: 'Password', icon: Icons.lock_outline, obscure: true),
+                const SizedBox(height: 30),
+                SizedBox(
+                  width: double.infinity, height: 56,
+                  child: ElevatedButton(
+                    onPressed: _isLoading ? null : _login,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: kBlack,
+                      foregroundColor: kWhite,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      elevation: 0,
                     ),
+                    child: _isLoading 
+                      ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(color: kWhite, strokeWidth: 2))
+                      : const Text('Sign In', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                   ),
-                  const SizedBox(height: 24),
-                  const Text(
-                    'Sign In',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                        fontSize: 28, fontWeight: FontWeight.bold),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Enter your details to sign in',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: _muted(context)),
-                  ),
-                  const SizedBox(height: 40),
-                  _LoginField(
-                    controller: _nameController,
-                    hint: 'Account Holder Name',
-                    icon: Icons.person_outline,
-                    capitalization: TextCapitalization.words,
-                  ),
-                  const SizedBox(height: 16),
-                  _LoginField(
-                    controller: _bankIdController,
-                    hint: 'Account ID Number',
-                    icon: Icons.credit_card,
-                    keyboardType: TextInputType.number,
-                  ),
-                  const SizedBox(height: 30),
-                  SizedBox(
-                    height: 56,
-                    child: ElevatedButton(
-                      onPressed: _isLoading ? null : _login,
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: _buttonBg(context),
-                        foregroundColor: _onButton(context),
-                        shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(16)),
-                        elevation: 0,
-                      ),
-                      child: _isLoading
-                          ? const SizedBox(
-                              height: 24,
-                              width: 24,
-                              child: CircularProgressIndicator(
-                                  color: Colors.white, strokeWidth: 2),
-                            )
-                          : const Text(
-                              'Sign In securely',
-                              style: TextStyle(
-                                  fontSize: 18, fontWeight: FontWeight.bold),
-                            ),
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
           ),
         ),
@@ -763,206 +466,645 @@ class _LoginField extends StatelessWidget {
   final String hint;
   final IconData icon;
   final TextInputType? keyboardType;
-  final TextCapitalization capitalization;
+  final bool obscure;
 
-  const _LoginField({
-    required this.controller,
-    required this.hint,
-    required this.icon,
-    this.keyboardType,
-    this.capitalization = TextCapitalization.none,
-  });
+  const _LoginField({required this.controller, required this.hint, required this.icon, this.keyboardType, this.obscure = false});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        color: _surfaceCard(context),
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-              color: _shadow(context),
-              blurRadius: 10,
-              offset: const Offset(0, 4)),
-        ],
-      ),
-      child: TextField(
-        controller: controller,
-        keyboardType: keyboardType,
-        textCapitalization: capitalization,
-        decoration: InputDecoration(
-          hintText: hint,
-          prefixIcon: Icon(icon),
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.all(20),
+    return RepaintBoundary(
+      child: Container(
+        decoration: BoxDecoration(
+          color: kWhite,
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(left: 20, right: 12),
+              child: Icon(icon, color: kTextGrey),
+            ),
+            Expanded(
+              child: TextField(
+                controller: controller,
+                keyboardType: keyboardType,
+                obscureText: obscure,
+                style: const TextStyle(color: kBlack, fontSize: 16),
+                decoration: InputDecoration(
+                  hintText: hint,
+                  hintStyle: const TextStyle(color: kTextGrey),
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(vertical: 20),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-// -----------------------------------------------------------------------------
-// Home shell (bottom navigation)
-// -----------------------------------------------------------------------------
-
-class HomeShell extends StatefulWidget {
-  const HomeShell({super.key});
-
+// =============================================================================
+// HOME PAGE
+// =============================================================================
+class HomePage extends StatefulWidget {
+  const HomePage({super.key});
   @override
-  State<HomeShell> createState() => _HomeShellState();
+  State<HomePage> createState() => _HomePageState();
 }
 
-class _HomeShellState extends State<HomeShell> {
-  int _index = 0;
+class _HomePageState extends State<HomePage> {
+  final DraggableScrollableController _sheetController = DraggableScrollableController();
+  late double _screenHeight;
 
-  static const List<Widget> _pages = [
-    HomePage(),
-    SendPage(),
-    ReceivePage(),
-    ProfilePage(),
-  ];
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _screenHeight = MediaQuery.of(context).size.height;
+  }
+
+  @override
+  void dispose() {
+    _sheetController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: IndexedStack(index: _index, children: _pages),
-      bottomNavigationBar: BottomNavigationBar(
-        type: BottomNavigationBarType.fixed,
-        currentIndex: _index,
-        onTap: (i) => setState(() => _index = i),
-        selectedItemColor:
-            _isDark(context) ? const Color(0xFF00A86B) : const Color(0xFF006A4E),
-        unselectedItemColor: _isDark(context) ? Colors.grey[500] : Colors.grey,
-        backgroundColor: _surfaceCard(context),
-        items: const [
-          BottomNavigationBarItem(icon: Icon(Icons.home), label: 'Home'),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.north_east), label: 'Send'),
-          BottomNavigationBarItem(
-              icon: Icon(Icons.south_west), label: 'Receive'),
-          BottomNavigationBarItem(icon: Icon(Icons.person), label: 'Profile'),
-        ],
+      backgroundColor: kBgGrey,
+      body: SafeArea(
+        bottom: false,
+        child: Stack(
+          children: [
+            // Background Content
+            Positioned.fill(
+              child: Column(
+                children: [
+                  // Header
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                    child: ValueListenableBuilder<UserState>(
+                      valueListenable: userNotifier,
+                      builder: (context, user, _) => Row(
+                        children: [
+                          CircleAvatar(radius: 20, backgroundImage: _avatarProvider(user)),
+                          const SizedBox(width: 12),
+                          Text(
+                            'Hello, ${user.name.isEmpty ? "Bardia" : user.name}!',
+                            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: kBlack),
+                          ),
+                          const Spacer(),
+                          GestureDetector(
+                            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfilePage())),
+                            child: Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: const BoxDecoration(color: kWhite, shape: BoxShape.circle),
+                              child: const Icon(Icons.settings, size: 20, color: kBlack),
+                            ),
+                          )
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // CENTERED Balance Display
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+                    child: Center(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          const Text(
+                            'Total Balance', 
+                            style: TextStyle(color: kTextGrey, fontSize: 16, fontWeight: FontWeight.w500),
+                          ),
+                          const SizedBox(height: 8),
+                          ValueListenableBuilder<double>(
+                            valueListenable: balanceNotifier,
+                            builder: (context, balance, _) => Text(
+                              formatMoney(balance), 
+                              style: TextStyle(
+                                color: balance < 0 ? kRed : kBlack, 
+                                fontSize: 42, 
+                                fontWeight: FontWeight.bold, 
+                                letterSpacing: -1
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+
+                  // Action Buttons
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: _ActionButton(
+                            icon: Icons.north_east,
+                            label: 'Send',
+                            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SendPage())),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _ActionButton(
+                            icon: Icons.south_west,
+                            label: 'Receive',
+                            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ReceivePage())),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: _ActionButton(
+                            icon: Icons.more_horiz,
+                            label: 'More',
+                            onTap: () => _showMoreMenu(context),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 20),
+
+                  // DYNAMIC AD CAROUSEL
+                  const Padding(
+                    padding: EdgeInsets.symmetric(horizontal: 20),
+                    child: AdCarousel(),
+                  ),
+                  
+                  const Spacer(), 
+                ],
+              ),
+            ),
+
+            // Swipeable Bottom Sheet
+            DraggableScrollableSheet(
+              controller: _sheetController,
+              initialChildSize: 0.45,
+              minChildSize: 0.45,
+              maxChildSize: 1.0,
+              builder: (context, scrollController) {
+                return Container(
+                  decoration: const BoxDecoration(
+                    color: kWhite,
+                    borderRadius: BorderRadius.vertical(top: Radius.circular(30)),
+                  ),
+                  child: Column(
+                    children: [
+                      GestureDetector(
+                        behavior: HitTestBehavior.opaque,
+                        onVerticalDragUpdate: (details) {
+                          final delta = details.primaryDelta ?? 0.0;
+                          final newSize = _sheetController.size - (delta / _screenHeight);
+                          _sheetController.jumpTo(newSize.clamp(0.45, 1.0));
+                        },
+                        onVerticalDragEnd: (details) {
+                          if (_sheetController.size > 0.7) {
+                            _sheetController.animateTo(1.0, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+                          } else {
+                            _sheetController.animateTo(0.45, duration: const Duration(milliseconds: 300), curve: Curves.easeOut);
+                          }
+                        },
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(vertical: 16),
+                          color: Colors.transparent, 
+                          child: Center(
+                            child: Container(
+                              width: 40, height: 4, 
+                              decoration: BoxDecoration(color: Colors.grey.shade300, borderRadius: BorderRadius.circular(2))
+                            ),
+                          ),
+                        ),
+                      ),
+                      
+                      const Padding(
+                        padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+                        child: Row(
+                          children: [
+                            Text('Latest Transactions', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: kBlack)),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      
+                      Expanded(
+                        child: ValueListenableBuilder<List<Tx>>(
+                          valueListenable: transactionsNotifier,
+                          builder: (context, txs, _) {
+                            if (txs.isEmpty) {
+                              return const Center(
+                                child: Text('No recent transactions', style: TextStyle(color: kTextGrey)),
+                              );
+                            }
+                            return ListView.separated(
+                              controller: scrollController,
+                              padding: const EdgeInsets.only(left: 20, right: 20, bottom: 20),
+                              itemCount: txs.length,
+                              separatorBuilder: (_, __) => const SizedBox(height: 12),
+                              itemBuilder: (context, i) {
+                                final tx = txs[i];
+                                return Container(
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: kWhite,
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(color: Colors.grey.shade200),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      Container(
+                                        padding: const EdgeInsets.all(12),
+                                        decoration: const BoxDecoration(color: kBgGrey, shape: BoxShape.circle),
+                                        child: Icon(tx.icon, color: kBlack, size: 20),
+                                      ),
+                                      const SizedBox(width: 16),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(tx.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: kBlack)),
+                                            const SizedBox(height: 4),
+                                            Text(tx.time, style: const TextStyle(color: kTextGrey, fontSize: 12)),
+                                          ],
+                                        ),
+                                      ),
+                                      Text(
+                                        '${tx.isIncome ? '+' : ''}${formatMoney(tx.amount)}', 
+                                        style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: tx.isIncome ? kGreen : kBlack)
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              },
+                            );
+                          }
+                        ),
+                      )
+                    ],
+                  ),
+                );
+              },
+            )
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showMoreMenu(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: kWhite,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 20),
+            const Text('More Options', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: kBlack)),
+            const SizedBox(height: 20),
+            ListTile(
+              leading: const Icon(Icons.savings, color: kBlack),
+              title: const Text('Savings / Auto-Save', style: TextStyle(color: kBlack)),
+              onTap: () { 
+                Navigator.pop(ctx); 
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const SavingsPage())); 
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.payments, color: kBlack),
+              title: const Text('Loan / Advance', style: TextStyle(color: kBlack)),
+              onTap: () { 
+                Navigator.pop(ctx); 
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const LoanPage())); 
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.subscriptions, color: kBlack),
+              title: const Text('Subscriptions', style: TextStyle(color: kBlack)),
+              onTap: () { 
+                Navigator.pop(ctx); 
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const SubscriptionPage())); 
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.receipt_long, color: kBlack),
+              title: const Text('Pay Bill', style: TextStyle(color: kBlack)),
+              onTap: () { Navigator.pop(ctx); _showBillMenu(context); },
+            ),
+            ListTile(
+              leading: const Icon(Icons.school, color: kBlack),
+              title: const Text('Education Payment', style: TextStyle(color: kBlack)),
+              onTap: () { Navigator.pop(ctx); _showEducationMenu(context); },
+            ),
+            ListTile(
+              leading: const Icon(Icons.shopping_bag, color: kBlack),
+              title: const Text('Shopping Payment', style: TextStyle(color: kBlack)),
+              onTap: () { 
+                Navigator.pop(ctx); 
+                Navigator.push(context, MaterialPageRoute(builder: (_) => const QrScannerPage())); 
+              },
+            ),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showBillMenu(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: kWhite,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 20),
+            const Text('Select Biller', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: kBlack)),
+            const SizedBox(height: 10),
+            ListTile(title: const Text('DPDC'), onTap: () { Navigator.pop(ctx); _goToBillPayment(context, 'DPDC', 'Meter Number'); }),
+            ListTile(title: const Text('DESCO'), onTap: () { Navigator.pop(ctx); _goToBillPayment(context, 'DESCO', 'Meter Number'); }),
+            ListTile(title: const Text('Dot Internet'), onTap: () { Navigator.pop(ctx); _goToBillPayment(context, 'Dot Internet', 'Customer Number'); }),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _goToBillPayment(BuildContext context, String billerName, String idLabel) {
+    Navigator.push(context, MaterialPageRoute(builder: (_) => BillPaymentPage(billerName: billerName, idLabel: idLabel)));
+  }
+
+  void _showEducationMenu(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: kWhite,
+      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 20),
+            const Text('Select Institution', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: kBlack)),
+            const SizedBox(height: 10),
+            ListTile(title: const Text('Shamsul Hoque Khan School and College'), onTap: () { Navigator.pop(ctx); _goToEducationPayment(context, 'Shamsul Hoque Khan School', false); }),
+            ListTile(title: const Text('Dhaka City College'), onTap: () { Navigator.pop(ctx); _goToEducationPayment(context, 'Dhaka City College', false); }),
+            ListTile(title: const Text('Dhaka College'), onTap: () { Navigator.pop(ctx); _goToEducationPayment(context, 'Dhaka College', false); }),
+            ListTile(title: const Text('Daffodil International University'), onTap: () { Navigator.pop(ctx); _goToEducationPayment(context, 'Daffodil International University', true); }),
+            ListTile(title: const Text('South-East University'), onTap: () { Navigator.pop(ctx); _goToEducationPayment(context, 'South-East University', true); }),
+            const SizedBox(height: 20),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _goToEducationPayment(BuildContext context, String institutionName, bool isUniversity) {
+    Navigator.push(context, MaterialPageRoute(builder: (_) => EducationPaymentPage(institutionName: institutionName, isUniversity: isUniversity)));
+  }
+}
+
+class _ActionButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _ActionButton({required this.icon, required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        decoration: BoxDecoration(
+          color: kWhite,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: Colors.grey.shade200),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: kBlack),
+            const SizedBox(height: 8),
+            Text(label, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: kBlack)),
+          ],
+        ),
       ),
     );
   }
 }
 
-// -----------------------------------------------------------------------------
-// Home page
-// -----------------------------------------------------------------------------
+// =============================================================================
+// SAVINGS PAGE
+// =============================================================================
+class SavingsPage extends StatefulWidget {
+  const SavingsPage({super.key});
+  @override
+  State<SavingsPage> createState() => _SavingsPageState();
+}
 
-class HomePage extends StatelessWidget {
-  const HomePage({super.key});
+class _SavingsPageState extends State<SavingsPage> {
+  bool _isLoading = false;
+
+  Future<void> _withdraw() async {
+    final startDate = savingsStartDateNotifier.value;
+    if (startDate == null) return;
+
+    if (DateTime.now().difference(startDate).inDays < 365) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        backgroundColor: kRed,
+        content: Text('You can only withdraw after 1 year.'),
+      ));
+      return;
+    }
+
+    if (savingsBalanceNotifier.value <= 0) return;
+
+    bool authorized = false;
+    if (userNotifier.value.isBiometricEnabled) {
+      authorized = await _authenticateBiometrics(context);
+      if (!authorized) authorized = await _showPasswordDialog(context);
+    } else {
+      authorized = await _showPasswordDialog(context);
+    }
+
+    if (!authorized) return;
+    if (!mounted) return;
+
+    setState(() => _isLoading = true);
+    await Future.delayed(const Duration(seconds: 2));
+
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+
+    final amt = savingsBalanceNotifier.value;
+    _addTransaction(Tx(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      title: 'Savings Withdrawn',
+      subtitle: 'To Main Balance',
+      amount: amt,
+      time: 'Just now',
+      icon: Icons.savings,
+      isIncome: true,
+    ));
+
+    savingsBalanceNotifier.value = 0;
+    savingsEnabledNotifier.value = false;
+    savingsStartDateNotifier.value = null;
+    lastSavingsCutNotifier.value = null;
+    missedSavingsNotifier.value = false;
+
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      backgroundColor: kGreen, 
+      content: Text('Successfully withdrawn ${formatMoney(amt)}!')
+    ));
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      height: double.infinity,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [_pageTop(context), _pageBottom(context)],
-        ),
+    return Scaffold(
+      backgroundColor: kBgGrey,
+      appBar: AppBar(
+        backgroundColor: kBgGrey,
+        elevation: 0,
+        leading: IconButton(icon: const Icon(Icons.arrow_back, color: kBlack), onPressed: () => Navigator.pop(context)),
+        title: const Text('Savings', style: TextStyle(color: kBlack, fontWeight: FontWeight.bold)),
+        centerTitle: true,
       ),
-      child: SafeArea(
-        bottom: false,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const _Header(),
-              const SizedBox(height: 16),
-              Expanded(
+              const SizedBox(height: 20),
+              Center(
                 child: Container(
-                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
-                  decoration: BoxDecoration(
-                    color: _heroCard(context),
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(
-                        color: _isDark(context)
-                            ? Colors.white10
-                            : Colors.black.withValues(alpha: 0.04)),
-                    boxShadow: [
-                      BoxShadow(
-                          color: _shadow(context),
-                          blurRadius: 20,
-                          offset: const Offset(0, 10)),
-                    ],
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              'Transaction Overview',
-                              style: TextStyle(
-                                  color: _onHero(context),
-                                  fontSize: 15,
-                                  fontWeight: FontWeight.w600),
-                            ),
-                          ),
-                          const Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              _LegendDot(
-                                  color: kReceivedColor, label: 'Received'),
-                              SizedBox(width: 12),
-                              _LegendDot(color: kSentColor, label: 'Sent'),
-                            ],
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-                      Expanded(
-                        child: SizedBox(
-                          width: double.infinity,
-                          child: CustomPaint(
-                            painter: _ChartPainter(
-                              gridColor: _onHeroSubtle(context),
-                              labelColor: _onHeroMuted(context),
-                              received: _receivedChart,
-                              sent: _sentChart,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
+                  padding: const EdgeInsets.all(24),
+                  decoration: const BoxDecoration(color: kBlack, shape: BoxShape.circle),
+                  child: const Icon(Icons.savings, color: kWhite, size: 60),
+                ),
+              ),
+              const SizedBox(height: 24),
+              const Center(child: Text('Total Savings', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: kBlack))),
+              const SizedBox(height: 8),
+              Center(
+                child: ValueListenableBuilder<double>(
+                  valueListenable: savingsBalanceNotifier,
+                  builder: (context, balance, _) => Text(
+                    formatMoney(balance), 
+                    style: const TextStyle(fontSize: 36, fontWeight: FontWeight.bold, color: kGreen),
                   ),
                 ),
               ),
-              const SizedBox(height: 20),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('Recent Transaction',
-                      style: TextStyle(
-                          fontSize: 18, fontWeight: FontWeight.bold)),
-                  GestureDetector(
-                    onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => const TransactionsPage())),
-                    child: Text(
-                      'See All',
-                      style: TextStyle(
-                          color: _subtle(context),
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600),
+              
+              const SizedBox(height: 40),
+              
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(color: kWhite, borderRadius: BorderRadius.circular(16)),
+                child: Column(
+                  children: [
+                    ValueListenableBuilder<bool>(
+                      valueListenable: savingsEnabledNotifier,
+                      builder: (context, enabled, _) => SwitchListTile(
+                        secondary: const Icon(Icons.autorenew, color: kBlack),
+                        title: const Text('Auto-Save 100 TK/month', style: TextStyle(color: kBlack, fontWeight: FontWeight.bold)),
+                        subtitle: const Text('Automatically cuts 100 TK every 30 days.'),
+                        value: enabled,
+                        activeThumbColor: kBlack,
+                        onChanged: (val) {
+                          if (!val) {
+                            // Trying to turn OFF
+                            final startDate = savingsStartDateNotifier.value;
+                            if (startDate != null && DateTime.now().difference(startDate).inDays < 365) {
+                              ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+                                backgroundColor: kRed,
+                                content: Text('Auto-save is locked for 1 year. You cannot turn it off.'),
+                              ));
+                              return;
+                            }
+                          }
+                          
+                          savingsEnabledNotifier.value = val;
+                          if (val) {
+                            savingsStartDateNotifier.value = DateTime.now();
+                            lastSavingsCutNotifier.value = DateTime.now();
+                            missedSavingsNotifier.value = false;
+                          }
+                        },
+                      ),
                     ),
-                  ),
-                ],
+                    const Divider(),
+                    ValueListenableBuilder<bool>(
+                      valueListenable: missedSavingsNotifier,
+                      builder: (context, missed, _) {
+                        if (!missed) return const SizedBox.shrink();
+                        return Padding(
+                          padding: const EdgeInsets.all(8.0),
+                          child: Text(
+                            'Warning: You missed a payment! Next cut will be 210 TK (100 double + 10 penalty).',
+                            style: TextStyle(color: Colors.orange.shade800, fontSize: 13, fontWeight: FontWeight.bold),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 12),
-              for (int i = 0; i < _recentTransactions.length; i++) ...[
-                _TransactionTile(tx: _recentTransactions[i]),
-                if (i != _recentTransactions.length - 1)
-                  const SizedBox(height: 10),
-              ],
+              
+              const SizedBox(height: 20),
+              
+              // MOVED ORANGE WARNING HERE (Replaces blue)
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.orange.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 20),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'Warning: Turning on Auto-Save locks your deposited savings for 1 year. You cannot turn it off or withdraw until then.',
+                        style: TextStyle(color: Colors.orange.shade800, fontSize: 12, fontWeight: FontWeight.w500),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              
+              const SizedBox(height: 40),
+              
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: ElevatedButton(
+                  onPressed: _isLoading ? null : _withdraw,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: kBlack,
+                    foregroundColor: kWhite,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
+                  child: _isLoading 
+                    ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(color: kWhite, strokeWidth: 2))
+                    : const Text('Withdraw Savings', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                ),
+              ),
             ],
           ),
         ),
@@ -971,149 +1113,837 @@ class HomePage extends StatelessWidget {
   }
 }
 
-class _LegendDot extends StatelessWidget {
-  final Color color;
-  final String label;
+// =============================================================================
+// DYNAMIC AD CAROUSEL
+// =============================================================================
+class AdCarousel extends StatefulWidget {
+  const AdCarousel({super.key});
 
-  const _LegendDot({required this.color, required this.label});
+  @override
+  State<AdCarousel> createState() => _AdCarouselState();
+}
+
+class _AdCarouselState extends State<AdCarousel> {
+  final PageController _pageController = PageController();
+  Timer? _timer;
+  int _currentPage = 0;
+  List<AdItem> _ads = [];
+
+  @override
+  void initState() {
+    super.initState();
+    _generateAds();
+    
+    isProNotifier.addListener(_onAdsChanged);
+    purchasedSubsNotifier.addListener(_onAdsChanged);
+    
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _startAutoScroll();
+    });
+  }
+
+  @override
+  void dispose() {
+    isProNotifier.removeListener(_onAdsChanged);
+    purchasedSubsNotifier.removeListener(_onAdsChanged);
+    _timer?.cancel();
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  void _onAdsChanged() {
+    if (!mounted) return;
+    setState(() {
+      _generateAds();
+    });
+    _startAutoScroll();
+  }
+
+  void _generateAds() {
+    List<AdItem> ads = [];
+
+    if (!isProNotifier.value) {
+      ads.add(AdItem(
+        title: 'Upgrade to Synapse Pro',
+        subtitle: 'Get 5% cashback and higher loan limits.',
+        icon: Icons.stars, 
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const UpgradePage())),
+      ));
+    }
+
+    for (var sub in availableSubs) {
+      if (sub.name != 'Synapse Pro' && !purchasedSubsNotifier.value.contains(sub.name)) {
+        ads.add(AdItem(
+          title: 'Get ${sub.name}',
+          subtitle: 'Subscribe for only ${formatMoney(sub.price)}/month.',
+          icon: sub.icon,
+          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => SubscriptionBenefitsPage(sub: sub))),
+        ));
+      }
+    }
+
+    ads.add(AdItem(
+      title: 'Prothom Alo',
+      subtitle: 'Read the latest news from Bangladesh.',
+      icon: Icons.newspaper,
+      onTap: () => _openUrl('https://www.prothomalo.com/'),
+    ));
+
+    _ads = ads;
+    if (_currentPage >= _ads.length) {
+      _currentPage = 0;
+      if (_pageController.hasClients) {
+        _pageController.jumpToPage(0);
+      }
+    }
+  }
+
+  void _startAutoScroll() {
+    _timer?.cancel();
+    if (_ads.length <= 1) return;
+
+    _timer = Timer.periodic(const Duration(seconds: 4), (timer) {
+      if (!mounted || !_pageController.hasClients) return;
+      
+      int nextPage = _currentPage + 1;
+      if (nextPage >= _ads.length) nextPage = 0;
+      
+      _pageController.animateToPage(
+        nextPage,
+        duration: const Duration(milliseconds: 400),
+        curve: Curves.easeInOut,
+      );
+    });
+  }
+
+  void _openUrl(String url) async {
+    final uri = Uri.parse(url);
+    try {
+      if (!await launchUrl(uri, mode: LaunchMode.externalApplication)) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Could not open link')));
+        }
+      }
+    } catch (e) {
+      debugPrint('Error launching URL: $e');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 10,
-          height: 10,
-          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+    if (_ads.isEmpty) return const SizedBox.shrink();
+
+    return SizedBox(
+      height: 80,
+      child: PageView.builder(
+        controller: _pageController,
+        itemCount: _ads.length,
+        onPageChanged: (index) {
+          _currentPage = index;
+        },
+        itemBuilder: (context, index) {
+          final ad = _ads[index];
+          return GestureDetector(
+            onTap: ad.onTap,
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 2),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  colors: [kDarkCardStart, kBlack],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(16),
+                boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 10, offset: const Offset(0, 5))],
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(color: kWhite.withValues(alpha: 0.1), shape: BoxShape.circle),
+                    child: Icon(ad.icon, color: kWhite, size: 20),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Text(
+                          ad.title, 
+                          style: const TextStyle(color: kWhite, fontSize: 14, fontWeight: FontWeight.bold),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          ad.subtitle, 
+                          style: const TextStyle(color: Colors.white70, fontSize: 11),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Icon(Icons.chevron_right, color: kWhite, size: 18),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+// =============================================================================
+// LOAN PAGE
+// =============================================================================
+class LoanPage extends StatefulWidget {
+  const LoanPage({super.key});
+  @override
+  State<LoanPage> createState() => _LoanPageState();
+}
+
+class _LoanPageState extends State<LoanPage> {
+  final _amountController = TextEditingController();
+  bool _isLoading = false;
+
+  @override
+  void dispose() {
+    _amountController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _takeLoan() async {
+    final amt = double.tryParse(_amountController.text) ?? 0;
+    final maxLimit = isProNotifier.value ? 5000.0 : 1000.0;
+
+    if (amt <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a valid amount')));
+      return;
+    }
+    if (amt > maxLimit) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+        backgroundColor: kRed,
+        content: Text('Amount exceeds your limit of ${formatMoney(maxLimit)}'),
+      ));
+      return;
+    }
+    if (loanNotifier.value > 0) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        backgroundColor: kRed,
+        content: Text('You must clear your previous loan first.'),
+      ));
+      return;
+    }
+
+    bool authorized = false;
+    if (userNotifier.value.isBiometricEnabled) {
+      authorized = await _authenticateBiometrics(context);
+      if (!authorized) authorized = await _showPasswordDialog(context);
+    } else {
+      authorized = await _showPasswordDialog(context);
+    }
+
+    if (!authorized) return;
+    if (!mounted) return;
+
+    FocusScope.of(context).unfocus();
+    setState(() => _isLoading = true);
+    await Future.delayed(const Duration(seconds: 2));
+
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+
+    loanNotifier.value = amt;
+    loanDueDateNotifier.value = DateTime.now().add(const Duration(days: 30));
+
+    _addTransaction(Tx(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      title: 'Loan Disbursed',
+      subtitle: 'Advance',
+      amount: amt,
+      time: 'Just now',
+      icon: Icons.payments,
+      isIncome: true,
+    ));
+
+    _amountController.clear();
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      backgroundColor: kGreen, 
+      content: Text('Loan of ${formatMoney(amt)} disbursed successfully!')
+    ));
+  }
+
+  Future<void> _repayLoan() async {
+    final amt = loanNotifier.value;
+    if (amt <= 0) return;
+
+    bool authorized = false;
+    if (userNotifier.value.isBiometricEnabled) {
+      authorized = await _authenticateBiometrics(context);
+      if (!authorized) authorized = await _showPasswordDialog(context);
+    } else {
+      authorized = await _showPasswordDialog(context);
+    }
+
+    if (!authorized) return;
+    if (!mounted) return;
+
+    setState(() => _isLoading = true);
+    await Future.delayed(const Duration(seconds: 2));
+
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+
+    _addTransaction(Tx(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      title: 'Loan Repayment',
+      subtitle: 'Cleared',
+      amount: -amt,
+      time: 'Just now',
+      icon: Icons.check_circle,
+      isIncome: false,
+    ));
+
+    loanNotifier.value = 0;
+    loanDueDateNotifier.value = null;
+
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      backgroundColor: kGreen, 
+      content: Text('Loan fully repaid!')
+    ));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: kBgGrey,
+      appBar: AppBar(
+        backgroundColor: kBgGrey,
+        elevation: 0,
+        leading: IconButton(icon: const Icon(Icons.arrow_back, color: kBlack), onPressed: () => Navigator.pop(context)),
+        title: const Text('Loan / Advance', style: TextStyle(color: kBlack, fontWeight: FontWeight.bold)),
+        centerTitle: true,
+      ),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 20),
+              const Icon(Icons.payments, size: 60, color: kBlack),
+              const SizedBox(height: 24),
+              const Text('Take a Loan', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: kBlack)),
+              const SizedBox(height: 8),
+              const Text('Get instant funds. Repay within 30 days.', style: TextStyle(color: kTextGrey)),
+              
+              const SizedBox(height: 30),
+              
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(color: kWhite, borderRadius: BorderRadius.circular(16)),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Your Limit', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500, color: kBlack)),
+                    ValueListenableBuilder<bool>(
+                      valueListenable: isProNotifier,
+                      builder: (context, isPro, _) => Text(
+                        isPro ? '৳5,000' : '৳1,000',
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: kGreen),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              
+              const SizedBox(height: 20),
+
+              ValueListenableBuilder<double>(
+                valueListenable: loanNotifier,
+                builder: (context, activeLoan, _) {
+                  if (activeLoan > 0) {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(20),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('Outstanding Loan', style: TextStyle(color: Colors.orange, fontWeight: FontWeight.bold)),
+                              const SizedBox(height: 8),
+                              Text(formatMoney(activeLoan), style: const TextStyle(fontSize: 32, fontWeight: FontWeight.bold, color: kBlack)),
+                              const SizedBox(height: 16),
+                              ValueListenableBuilder<DateTime?>(
+                                valueListenable: loanDueDateNotifier,
+                                builder: (context, dueDate, _) => Text(
+                                  'Due Date: ${dueDate != null ? formatDate(dueDate) : "N/A"}',
+                                  style: const TextStyle(color: kTextGrey, fontSize: 14, fontWeight: FontWeight.w500),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        const Text('You must repay your current loan before taking a new one.', style: TextStyle(color: kTextGrey, fontSize: 12)),
+                        const SizedBox(height: 40),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 56,
+                          child: ElevatedButton(
+                            onPressed: _isLoading ? null : _repayLoan,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: kBlack,
+                              foregroundColor: kWhite,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            ),
+                            child: _isLoading 
+                              ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(color: kWhite, strokeWidth: 2))
+                              : const Text('Repay Loan', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                          ),
+                        ),
+                      ],
+                    );
+                  } else {
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Enter Amount (৳)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: kBlack)),
+                        const SizedBox(height: 12),
+                        RepaintBoundary(
+                          child: Container(
+                            decoration: BoxDecoration(color: kWhite, borderRadius: BorderRadius.circular(16)),
+                            child: Row(
+                              children: [
+                                const Padding(
+                                  padding: EdgeInsets.only(left: 20, right: 12),
+                                  child: Text('৳', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: kBlack)),
+                                ),
+                                Expanded(
+                                  child: TextField(
+                                    controller: _amountController,
+                                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: kBlack),
+                                    decoration: const InputDecoration(
+                                      hintText: '0.00',
+                                      hintStyle: TextStyle(color: kTextGrey),
+                                      border: InputBorder.none,
+                                      contentPadding: EdgeInsets.symmetric(vertical: 20),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                        
+                        const SizedBox(height: 24),
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.orange.withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.orange.withValues(alpha: 0.3)),
+                          ),
+                          child: Row(
+                            children: [
+                              const Icon(Icons.info_outline, color: Colors.orange, size: 20),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Text(
+                                  'Your loan will be due in 30 days. If unpaid, the amount will be automatically deducted, potentially resulting in a negative balance.',
+                                  style: TextStyle(color: Colors.orange.shade800, fontSize: 12, fontWeight: FontWeight.w500),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        
+                        const SizedBox(height: 40),
+                        SizedBox(
+                          width: double.infinity,
+                          height: 56,
+                          child: ElevatedButton(
+                            onPressed: _isLoading ? null : _takeLoan,
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: kBlack,
+                              foregroundColor: kWhite,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                            ),
+                            child: _isLoading 
+                              ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(color: kWhite, strokeWidth: 2))
+                              : const Text('Take Loan', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                          ),
+                        ),
+                      ],
+                    );
+                  }
+                }
+              ),
+            ],
+          ),
         ),
-        const SizedBox(width: 6),
-        Text(label,
-            style: TextStyle(fontSize: 11, color: _onHeroMuted(context))),
+      ),
+    );
+  }
+}
+
+// =============================================================================
+// UPGRADE PAGE
+// =============================================================================
+class UpgradePage extends StatefulWidget {
+  const UpgradePage({super.key});
+  @override
+  State<UpgradePage> createState() => _UpgradePageState();
+}
+
+class _UpgradePageState extends State<UpgradePage> {
+  bool _isLoading = false;
+
+  Future<void> _processUpgrade() async {
+    if (500.0 > balanceNotifier.value) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        backgroundColor: kRed,
+        content: Text('Insufficient balance. Please take a loan or receive money first.'),
+      ));
+      return;
+    }
+
+    bool authorized = false;
+    if (userNotifier.value.isBiometricEnabled) {
+      authorized = await _authenticateBiometrics(context);
+      if (!authorized) authorized = await _showPasswordDialog(context);
+    } else {
+      authorized = await _showPasswordDialog(context);
+    }
+
+    if (!authorized) return;
+    if (!mounted) return;
+
+    setState(() => _isLoading = true);
+    await Future.delayed(const Duration(seconds: 2));
+
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+
+    isProNotifier.value = true;
+    purchasedSubsNotifier.value = [...purchasedSubsNotifier.value, 'Synapse Pro'];
+
+    _addTransaction(Tx(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      title: 'Synapse Pro Upgrade',
+      subtitle: 'Subscription',
+      amount: -500.0,
+      time: 'Just now',
+      icon: Icons.stars, 
+      isIncome: false,
+    ));
+
+    Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const SuccessPage()));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: kBgGrey,
+      appBar: AppBar(
+        backgroundColor: kBgGrey,
+        elevation: 0,
+        leading: IconButton(icon: const Icon(Icons.arrow_back, color: kBlack), onPressed: () => Navigator.pop(context)),
+        title: const Text('Synapse Pro', style: TextStyle(color: kBlack, fontWeight: FontWeight.bold)),
+        centerTitle: true,
+      ),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            children: [
+              const SizedBox(height: 20),
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: const BoxDecoration(color: kBlack, shape: BoxShape.circle),
+                child: const Icon(Icons.stars, color: kWhite, size: 60), 
+              ),
+              const SizedBox(height: 24),
+              const Text('Upgrade to Synapse Pro', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: kBlack)),
+              const SizedBox(height: 8),
+              const Text('Unlock premium features and get more out of your wallet.', textAlign: TextAlign.center, style: TextStyle(color: kTextGrey, fontSize: 16)),
+              
+              const SizedBox(height: 40),
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(color: kWhite, borderRadius: BorderRadius.circular(16)),
+                child: Column(
+                  children: [
+                    _buildFeatureRow(Icons.check_circle, '5% Cashback on all bills'),
+                    const SizedBox(height: 16),
+                    _buildFeatureRow(Icons.check_circle, 'Higher loan limit (up to ৳5,000)'),
+                    const SizedBox(height: 16),
+                    _buildFeatureRow(Icons.check_circle, 'Priority customer support'),
+                  ],
+                ),
+              ),
+              
+              const SizedBox(height: 40),
+              const Text('Monthly Plan', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: kBlack)),
+              const SizedBox(height: 8),
+              const Text('৳500.00 / month', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: kBlack)),
+              
+              const SizedBox(height: 40),
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: ElevatedButton(
+                  onPressed: _isLoading ? null : _processUpgrade,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: kBlack,
+                    foregroundColor: kWhite,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
+                  child: _isLoading 
+                    ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(color: kWhite, strokeWidth: 2))
+                    : const Text('Subscribe for ৳500', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFeatureRow(IconData icon, String text) {
+    return Row(
+      children: [
+        Icon(icon, color: kBlack, size: 20),
+        const SizedBox(width: 12),
+        Text(text, style: const TextStyle(color: kBlack, fontSize: 14, fontWeight: FontWeight.w500)),
       ],
     );
   }
 }
 
-class _Header extends StatelessWidget {
-  const _Header();
+// =============================================================================
+// SUBSCRIPTION PAGES
+// =============================================================================
+class SubscriptionPage extends StatelessWidget {
+  const SubscriptionPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return ValueListenableBuilder<UserState>(
-      valueListenable: userNotifier,
-      builder: (context, user, _) {
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            CircleAvatar(radius: 24, backgroundImage: _avatarProvider(user)),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+    return Scaffold(
+      backgroundColor: kBgGrey,
+      appBar: AppBar(
+        backgroundColor: kBgGrey,
+        elevation: 0,
+        leading: IconButton(icon: const Icon(Icons.arrow_back, color: kBlack), onPressed: () => Navigator.pop(context)),
+        title: const Text('Subscriptions', style: TextStyle(color: kBlack, fontWeight: FontWeight.bold)),
+        centerTitle: true,
+      ),
+      body: ListView.separated(
+        padding: const EdgeInsets.all(24),
+        itemCount: availableSubs.length,
+        separatorBuilder: (_, __) => const SizedBox(height: 16),
+        itemBuilder: (context, i) {
+          final sub = availableSubs[i];
+          
+          if (sub.name == 'Synapse Pro') {
+            return ValueListenableBuilder<bool>(
+              valueListenable: isProNotifier,
+              builder: (context, isPro, _) {
+                if (isPro) {
+                  return Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: kBlack,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.stars, color: kWhite, size: 24),
+                        const SizedBox(width: 16),
+                        const Expanded(
+                          child: Text('Synapse Pro Active', style: TextStyle(color: kWhite, fontWeight: FontWeight.bold, fontSize: 16)),
+                        ),
+                        const Icon(Icons.check_circle, color: kGreen, size: 24),
+                      ],
+                    ),
+                  );
+                }
+                return InkWell(
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const UpgradePage())),
+                  borderRadius: BorderRadius.circular(16),
+                  child: Container(
+                    padding: const EdgeInsets.all(20),
+                    decoration: BoxDecoration(
+                      color: kWhite,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: Colors.grey.shade200),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: kBlack.withValues(alpha: 0.05),
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Icon(Icons.stars, color: kBlack, size: 24),
+                        ),
+                        const SizedBox(width: 16),
+                        const Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text('Synapse Pro', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: kBlack)),
+                              SizedBox(height: 4),
+                              Text('Get 5% cashback and higher limits', style: TextStyle(color: kTextGrey, fontSize: 12)),
+                            ],
+                          ),
+                        ),
+                        Text(
+                          formatMoney(sub.price),
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: kBlack),
+                        ),
+                      ],
+                    ),
+                  ),
+                );
+              }
+            );
+          }
+
+          return InkWell(
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => SubscriptionBenefitsPage(sub: sub))),
+            borderRadius: BorderRadius.circular(16),
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: kWhite,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: Colors.grey.shade200),
+              ),
+              child: Row(
                 children: [
-                  Text('Welcome Back',
-                      style:
-                          TextStyle(color: _muted(context), fontSize: 12)),
-                  Text(user.name,
-                      style: const TextStyle(
-                          fontWeight: FontWeight.bold, fontSize: 16)),
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: kBlack.withValues(alpha: 0.05),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(sub.icon, color: kBlack, size: 24),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(sub.name, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: kBlack)),
+                        const SizedBox(height: 4),
+                        const Text('Monthly subscription', style: TextStyle(color: kTextGrey, fontSize: 12)),
+                      ],
+                    ),
+                  ),
+                  Text(
+                    formatMoney(sub.price),
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: kBlack),
+                  ),
                 ],
               ),
             ),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text('Total Balance',
-                    style: TextStyle(
-                        color: _muted(context),
-                        fontSize: 11,
-                        fontWeight: FontWeight.w500)),
-                const SizedBox(height: 2),
-                Text(formatMoney(totalBalance),
-                    style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        letterSpacing: -0.5)),
-              ],
-            ),
-          ],
-        );
-      },
+          );
+        },
+      ),
     );
   }
 }
 
-class _TransactionTile extends StatelessWidget {
-  final Tx tx;
-  const _TransactionTile({required this.tx});
+// =============================================================================
+// SUBSCRIPTION BENEFITS PAGE
+// =============================================================================
+class SubscriptionBenefitsPage extends StatelessWidget {
+  final SubModel sub;
+  const SubscriptionBenefitsPage({super.key, required this.sub});
 
   @override
   Widget build(BuildContext context) {
-    final isIncome = tx.amount > 0;
-    final amountStr = formatMoney(tx.amount, showSign: true);
-    final amountColor = isIncome ? const Color(0xFF16A34A) : null;
-
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(20),
-        onTap: () => _shareInvoice(
-          title: tx.title,
-          subtitle: tx.subtitle,
-          amount: amountStr,
-          time: tx.time,
-        ),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-          decoration: BoxDecoration(
-            color: _surfaceCard(context),
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-                color: _isDark(context)
-                    ? Colors.white10
-                    : Colors.black.withValues(alpha: 0.04)),
-          ),
-          child: Row(
+    return Scaffold(
+      backgroundColor: kBgGrey,
+      appBar: AppBar(
+        backgroundColor: kBgGrey,
+        elevation: 0,
+        leading: IconButton(icon: const Icon(Icons.arrow_back, color: kBlack), onPressed: () => Navigator.pop(context)),
+        title: Text(sub.name, style: const TextStyle(color: kBlack, fontWeight: FontWeight.bold)),
+        centerTitle: true,
+      ),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Column(
             children: [
+              const SizedBox(height: 20),
               Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                    color: _iconBg(context), shape: BoxShape.circle),
-                child: Icon(tx.icon, size: 20, color: _onHero(context)),
+                padding: const EdgeInsets.all(24),
+                decoration: const BoxDecoration(color: kBlack, shape: BoxShape.circle),
+                child: Icon(sub.icon, color: kWhite, size: 60),
               ),
-              const SizedBox(width: 12),
-              Expanded(
+              const SizedBox(height: 24),
+              Text('Get ${sub.name}', style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: kBlack)),
+              const SizedBox(height: 8),
+              Text('See what is included in your subscription.', textAlign: TextAlign.center, style: const TextStyle(color: kTextGrey, fontSize: 16)),
+              
+              const SizedBox(height: 40),
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(color: kWhite, borderRadius: BorderRadius.circular(16)),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(tx.title,
-                        style: const TextStyle(
-                            fontWeight: FontWeight.w600, fontSize: 14)),
-                    const SizedBox(height: 4),
-                    Text(tx.subtitle,
-                        style: TextStyle(
-                            color: _subtle(context), fontSize: 12)),
-                  ],
+                  children: sub.benefits.map((benefit) {
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 16),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.check_circle, color: kBlack, size: 20),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Text(benefit, style: const TextStyle(color: kBlack, fontSize: 14, fontWeight: FontWeight.w500)),
+                          ),
+                        ],
+                      ),
+                    );
+                  }).toList(),
                 ),
               ),
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                children: [
-                  Text(amountStr,
-                      style: TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 14,
-                          color: amountColor)),
-                  const SizedBox(height: 4),
-                  Text(tx.time,
-                      style: TextStyle(
-                          color: _subtle(context), fontSize: 12)),
-                ],
+              
+              const SizedBox(height: 40),
+              const Text('Monthly Plan', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: kBlack)),
+              const SizedBox(height: 8),
+              Text('${formatMoney(sub.price)} / month', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: kBlack)),
+              
+              const SizedBox(height: 40),
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => SubscriptionCheckoutPage(sub: sub))),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: kBlack,
+                    foregroundColor: kWhite,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
+                  child: Text('Proceed to Pay ${formatMoney(sub.price)}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                ),
               ),
-              const SizedBox(width: 8),
-              Icon(Icons.file_download_outlined,
-                  size: 18, color: _subtle(context)),
             ],
           ),
         ),
@@ -1122,499 +1952,460 @@ class _TransactionTile extends StatelessWidget {
   }
 }
 
-// -----------------------------------------------------------------------------
-// Chart painter (received vs sent, last 8 months)
-// -----------------------------------------------------------------------------
-
-class _ChartPainter extends CustomPainter {
-  final Color gridColor;
-  final Color labelColor;
-  final List<double> received;
-  final List<double> sent;
-
-  _ChartPainter({
-    required this.gridColor,
-    required this.labelColor,
-    required this.received,
-    required this.sent,
-  });
+class SubscriptionCheckoutPage extends StatefulWidget {
+  final SubModel sub;
+  const SubscriptionCheckoutPage({super.key, required this.sub});
 
   @override
-  void paint(Canvas canvas, Size size) {
-    final gridPaint = Paint()
-      ..color = gridColor
-      ..strokeWidth = 1;
-
-    const top = 10.0;
-    const bottom = 25.0;
-    const left = 35.0;
-    const right = 10.0;
-
-    final chartW = (size.width - left - right).clamp(0.0, double.infinity);
-    final chartH = (size.height - top - bottom).clamp(0.0, double.infinity);
-
-    final all = [...received, ...sent];
-    final rawMax = all.isEmpty ? 0.0 : all.reduce((a, b) => a > b ? a : b);
-    final maxVal = rawMax > 0 ? rawMax : 1.0;
-
-    final yTextStyle = TextStyle(color: labelColor, fontSize: 10);
-    final xTextStyle = TextStyle(color: labelColor, fontSize: 10);
-
-    for (int i = 0; i <= 4; i++) {
-      final y = top + chartH * (i / 4);
-      canvas.drawLine(Offset(left, y), Offset(left + chartW, y), gridPaint);
-      final v = maxVal * (1 - i / 4);
-      final tp = TextPainter(
-        text: TextSpan(text: _formatK(v), style: yTextStyle),
-        textDirection: TextDirection.ltr,
-      )..layout();
-      tp.paint(canvas, Offset(left - tp.width - 6, y - tp.height / 2));
-    }
-
-    const months = ['May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    for (int i = 0; i < received.length; i++) {
-      final dx = received.length > 1 ? (i / (received.length - 1)) : 0.5;
-      final x = left + dx * chartW;
-      final tp = TextPainter(
-        text: TextSpan(text: months[i], style: xTextStyle),
-        textDirection: TextDirection.ltr,
-      )..layout();
-      tp.paint(canvas, Offset(x - tp.width / 2, top + chartH + 6));
-    }
-
-    Offset pt(int i, double v) {
-      final dx = received.length > 1 ? (i / (received.length - 1)) : 0.5;
-      final x = left + dx * chartW;
-      final y = top + chartH - (v / maxVal) * chartH;
-      return Offset(x, y);
-    }
-
-    final sentPaint = Paint()
-      ..color = kSentColor
-      ..strokeWidth = 2.0
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-    final sentPath = Path();
-    for (int i = 0; i < sent.length; i++) {
-      final p = pt(i, sent[i]);
-      if (i == 0) {
-        sentPath.moveTo(p.dx, p.dy);
-      } else {
-        sentPath.lineTo(p.dx, p.dy);
-      }
-    }
-    _drawDashedPath(canvas, sentPath, sentPaint);
-
-    final recPaint = Paint()
-      ..color = kReceivedColor
-      ..strokeWidth = 2.5
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round;
-    final recPath = Path();
-    for (int i = 0; i < received.length; i++) {
-      final p = pt(i, received[i]);
-      if (i == 0) {
-        recPath.moveTo(p.dx, p.dy);
-      } else {
-        recPath.lineTo(p.dx, p.dy);
-      }
-    }
-    canvas.drawPath(recPath, recPaint);
-
-    for (int i = 0; i < received.length; i++) {
-      final p = pt(i, received[i]);
-      canvas.drawCircle(p, 3.5, Paint()..color = kReceivedColor);
-    }
-  }
-
-  void _drawDashedPath(Canvas canvas, Path path, Paint paint) {
-    const dash = 5.0;
-    const gap = 4.0;
-    for (final metric in path.computeMetrics()) {
-      double dist = 0;
-      while (dist < metric.length) {
-        final next = dist + dash;
-        final end = next > metric.length ? metric.length : next;
-        canvas.drawPath(metric.extractPath(dist, end), paint);
-        dist = next + gap;
-      }
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _ChartPainter old) =>
-      old.gridColor != gridColor ||
-      old.labelColor != labelColor ||
-      !listEquals(old.received, received) ||
-      !listEquals(old.sent, sent);
+  State<SubscriptionCheckoutPage> createState() => _SubscriptionCheckoutPageState();
 }
 
-// -----------------------------------------------------------------------------
-// Send page
-// -----------------------------------------------------------------------------
-// Hooks needed for backend:
-//   - QR scanned value or typed code goes into `codeController`.
-//   - POST /transfer with { recipientCode, amount, biometricVerified } inside
-//     `_showAmountSheet`'s confirm button (replace the snackbar with the call).
-//   - Sending is blocked unless biometrics are enabled and verified.
-// -----------------------------------------------------------------------------
+class _SubscriptionCheckoutPageState extends State<SubscriptionCheckoutPage> {
+  final _accountIdController = TextEditingController();
+  bool _isLoading = false;
 
+  @override
+  void dispose() {
+    _accountIdController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _processPurchase() async {
+    final accountId = _accountIdController.text.trim();
+    if (accountId.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Please enter your ${widget.sub.emailLabel}')));
+      return;
+    }
+
+    if (widget.sub.price > balanceNotifier.value) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        backgroundColor: kRed,
+        content: Text('Insufficient balance. Please take a loan or receive money.'),
+      ));
+      return;
+    }
+
+    bool authorized = false;
+    if (userNotifier.value.isBiometricEnabled) {
+      authorized = await _authenticateBiometrics(context);
+      if (!authorized) authorized = await _showPasswordDialog(context);
+    } else {
+      authorized = await _showPasswordDialog(context);
+    }
+
+    if (!authorized) return;
+    if (!mounted) return;
+
+    setState(() => _isLoading = true);
+    await Future.delayed(const Duration(seconds: 2));
+
+    if (!mounted) return;
+    setState(() => _isLoading = false);
+
+    purchasedSubsNotifier.value = [...purchasedSubsNotifier.value, widget.sub.name];
+
+    _addTransaction(Tx(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      title: '${widget.sub.name} Subscription',
+      subtitle: 'For $accountId',
+      amount: -widget.sub.price,
+      time: 'Just now',
+      icon: widget.sub.icon,
+      isIncome: false,
+    ));
+
+    Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const SuccessPage()));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: kBgGrey,
+      appBar: AppBar(
+        backgroundColor: kBgGrey,
+        elevation: 0,
+        leading: IconButton(icon: const Icon(Icons.arrow_back, color: kBlack), onPressed: () => Navigator.pop(context)),
+        title: Text('Buy ${widget.sub.name}', style: const TextStyle(color: kBlack, fontWeight: FontWeight.bold)),
+        centerTitle: true,
+      ),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const SizedBox(height: 20),
+              Center(
+                child: Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(color: kWhite, shape: BoxShape.circle, boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 20)]),
+                  child: Icon(widget.sub.icon, size: 64, color: kBlack),
+                ),
+              ),
+              const SizedBox(height: 32),
+              const Text('Account Details', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: kBlack)),
+              const SizedBox(height: 8),
+              Text('Enter the account information needed to activate your ${widget.sub.name} subscription.', style: const TextStyle(color: kTextGrey, fontSize: 14)),
+              
+              const SizedBox(height: 24),
+              RepaintBoundary(
+                child: Container(
+                  decoration: BoxDecoration(color: kWhite, borderRadius: BorderRadius.circular(16)),
+                  child: Row(
+                    children: [
+                      const Padding(
+                        padding: EdgeInsets.only(left: 20, right: 12),
+                        child: Icon(Icons.person, color: kTextGrey),
+                      ),
+                      Expanded(
+                        child: TextField(
+                          controller: _accountIdController,
+                          keyboardType: TextInputType.emailAddress,
+                          style: const TextStyle(fontSize: 16, color: kBlack),
+                          decoration: InputDecoration(
+                            hintText: widget.sub.emailLabel,
+                            hintStyle: const TextStyle(color: kTextGrey),
+                            border: InputBorder.none,
+                            contentPadding: const EdgeInsets.symmetric(vertical: 20),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              
+              const SizedBox(height: 32),
+              const Text('Order Summary', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: kBlack)),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(color: kWhite, borderRadius: BorderRadius.circular(16)),
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Subscription Fee', style: TextStyle(color: kTextGrey)),
+                        Text(formatMoney(widget.sub.price), style: const TextStyle(fontWeight: FontWeight.bold, color: kBlack)),
+                      ],
+                    ),
+                    const Divider(height: 24),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Total', style: TextStyle(fontWeight: FontWeight.bold, color: kBlack)),
+                        Text(formatMoney(widget.sub.price), style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: kBlack)),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              
+              const SizedBox(height: 40),
+              SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: ElevatedButton(
+                  onPressed: _isLoading ? null : _processPurchase,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: kBlack,
+                    foregroundColor: kWhite,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
+                  child: _isLoading 
+                    ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(color: kWhite, strokeWidth: 2))
+                    : Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.lock, size: 18),
+                          const SizedBox(width: 8),
+                          Text('Pay ${formatMoney(widget.sub.price)}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                        ],
+                      ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// =============================================================================
+// SEND PAGE
+// =============================================================================
 class SendPage extends StatefulWidget {
   const SendPage({super.key});
-
   @override
   State<SendPage> createState() => _SendPageState();
 }
 
 class _SendPageState extends State<SendPage> {
-  final codeController = TextEditingController();
-  bool _isChecking = false;
+  final _codeController = TextEditingController();
+  String _amount = '0';
 
   @override
   void dispose() {
-    codeController.dispose();
+    _codeController.dispose();
     super.dispose();
   }
 
-  Future<void> _scanQR() async {
-    final result = await Navigator.push<String>(
-      context,
-      MaterialPageRoute(builder: (_) => const QrScannerScreen()),
-    );
-    if (result != null) codeController.text = result;
+  void _onKeyPress(String key) {
+    FocusScope.of(context).unfocus(); 
+    
+    setState(() {
+      if (key == 'back') {
+        if (_amount.length > 1) {
+          _amount = _amount.substring(0, _amount.length - 1);
+        } else {
+          _amount = '0';
+        }
+      } else if (key == '.') {
+        if (!_amount.contains('.')) _amount += '.';
+      } else {
+        if (_amount == '0') {
+          _amount = key;
+        } else {
+          if (_amount.contains('.') && _amount.split('.')[1].length >= 2) return;
+          _amount += key;
+        }
+      }
+    });
   }
 
-  Future<void> _processSend() async {
-    final code = codeController.text.trim();
+  Future<void> _processTransfer() async {
+    final code = _codeController.text.trim();
+    final amt = double.tryParse(_amount) ?? 0;
+
     if (code.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enter a code first')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a recipient code')));
       return;
     }
 
-    if (!userNotifier.value.isBiometricEnabled) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          backgroundColor: Colors.red,
-          content: Text(
-              'Please enable Biometric Security in Profile to send money.'),
-        ),
-      );
+    if (amt <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a valid amount')));
       return;
     }
 
-    FocusScope.of(context).unfocus();
-    setState(() => _isChecking = true);
+    if (amt > balanceNotifier.value) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        backgroundColor: kRed,
+        content: Text('Insufficient balance. Please receive money first.'),
+      ));
+      return;
+    }
 
-    // TODO(backend): replace with GET /recipients/:code to validate the code
-    // and fetch the recipient's display name before showing the amount sheet.
-    await Future.delayed(const Duration(milliseconds: 1500));
+    bool authorized = false;
+    if (userNotifier.value.isBiometricEnabled) {
+      authorized = await _authenticateBiometrics(context);
+      if (!authorized) authorized = await _showPasswordDialog(context);
+    } else {
+      authorized = await _showPasswordDialog(context);
+    }
 
+    if (!authorized) return;
     if (!mounted) return;
-    setState(() => _isChecking = false);
 
-    if (code.length < 3) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Invalid Code or Bank unreachable')),
-      );
-      return;
-    }
-
-    _showAmountSheet(code);
-  }
-
-  void _showAmountSheet(String code) {
-    final amountController = TextEditingController();
-
-    showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (ctx) {
-        return Container(
-          padding: EdgeInsets.only(
-              bottom: MediaQuery.of(ctx).viewInsets.bottom),
-          decoration: BoxDecoration(
-            color: _surfaceCard(ctx),
-            borderRadius:
-                const BorderRadius.vertical(top: Radius.circular(30)),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Enter Amount',
-                    style: TextStyle(
-                        fontSize: 20, fontWeight: FontWeight.bold)),
-                const SizedBox(height: 4),
-                Text('Sending to: $code',
-                    style: TextStyle(color: _muted(ctx), fontSize: 14)),
-                const SizedBox(height: 24),
-                TextField(
-                  controller: amountController,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(decimal: true),
-                  style: const TextStyle(
-                      fontSize: 32, fontWeight: FontWeight.bold),
-                  decoration: InputDecoration(
-                    prefixIcon: const Padding(
-                      padding: EdgeInsets.only(left: 16, right: 8),
-                      child: Text('৳',
-                          style: TextStyle(
-                              fontSize: 32, fontWeight: FontWeight.bold)),
-                    ),
-                    hintText: '0.00',
-                    border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(16),
-                        borderSide: BorderSide.none),
-                    filled: true,
-                    fillColor: _isDark(ctx)
-                        ? Colors.white10
-                        : const Color(0xFFF5F5F5),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                  children: [500, 1000, 2000, 5000].map((amt) {
-                    return ActionChip(
-                      label: Text('৳$amt'),
-                      onPressed: () => amountController.text = amt.toString(),
-                      backgroundColor: _isDark(ctx)
-                          ? Colors.white10
-                          : const Color(0xFFE8F5E9),
-                      side: BorderSide.none,
-                    );
-                  }).toList(),
-                ),
-                const SizedBox(height: 24),
-                SizedBox(
-                  width: double.infinity,
-                  height: 56,
-                  child: ElevatedButton(
-                    onPressed: () async {
-                      final amt =
-                          double.tryParse(amountController.text) ?? 0;
-                      if (amt <= 0) return;
-
-                      final auth = await _authenticateBiometrics(context);
-                      if (!auth) {
-                        if (context.mounted) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              backgroundColor: Colors.red,
-                              content: Text('Authentication Failed'),
-                            ),
-                          );
-                        }
-                        return;
-                      }
-
-                      if (!context.mounted) return;
-                      // TODO(backend): await POST /transfer here and use the
-                      // returned transactionId / status in the snackbar.
-                      Navigator.pop(ctx);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          backgroundColor: const Color(0xFF006A4E),
-                          content: Text('Sent ৳$amt to $code securely'),
-                        ),
-                      );
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: _buttonBg(ctx),
-                      foregroundColor: _onButton(ctx),
-                      shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(18)),
-                    ),
-                    child: const Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.fingerprint, size: 20),
-                        SizedBox(width: 8),
-                        Text('Confirm Transfer',
-                            style: TextStyle(
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold)),
-                      ],
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    ).whenComplete(amountController.dispose);
+    _addTransaction(Tx(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      title: 'Sent to $code',
+      subtitle: 'Transfer',
+      amount: -amt,
+      time: 'Just now',
+      icon: Icons.north_east,
+      isIncome: false,
+    ));
+    
+    Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const SuccessPage()));
   }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      height: double.infinity,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [_pageTop(context), _pageBottom(context)],
-        ),
+    return Scaffold(
+      backgroundColor: kWhite,
+      appBar: AppBar(
+        backgroundColor: kWhite,
+        elevation: 0,
+        leading: IconButton(icon: const Icon(Icons.arrow_back, color: kBlack), onPressed: () => Navigator.pop(context)),
+        title: const Text('Send Money', style: TextStyle(color: kBlack, fontWeight: FontWeight.bold)),
+        centerTitle: true,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.qr_code_scanner, color: kBlack),
+            onPressed: () async {
+              final result = await Navigator.push<String>(context, MaterialPageRoute(builder: (_) => const QrScannerPage()));
+              if (result != null) {
+                _codeController.text = result;
+              }
+            },
+          )
+        ],
       ),
-      child: SafeArea(
-        bottom: false,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text('Send Money',
-                  style: TextStyle(
-                      fontSize: 28, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 4),
-              Text('Scan a QR code or enter a payment code',
-                  style: TextStyle(color: _muted(context), fontSize: 14)),
-              const SizedBox(height: 28),
-              GestureDetector(
-                onTap: _scanQR,
-                child: Container(
-                  width: double.infinity,
-                  height: 260,
-                  decoration: BoxDecoration(
-                    color: _heroCard(context),
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(
-                        color: _isDark(context)
-                            ? Colors.white10
-                            : Colors.black.withValues(alpha: 0.04)),
-                    boxShadow: [
-                      BoxShadow(
-                          color: _shadow(context),
-                          blurRadius: 20,
-                          offset: const Offset(0, 10)),
-                    ],
-                  ),
-                  child: Stack(
-                    children: [
-                      const _ScannerCorners(),
-                      Center(
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(Icons.qr_code_scanner,
-                                size: 64, color: _onHeroMuted(context)),
-                            const SizedBox(height: 12),
-                            Text('Tap to scan',
-                                style: TextStyle(
-                                    color: _onHero(context),
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w500)),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
-              Row(
-                children: [
-                  Expanded(
-                      child: Divider(
-                          color: _subtle(context).withValues(alpha: 0.4))),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: Text('or',
-                        style: TextStyle(
-                            color: _subtle(context), fontSize: 13)),
-                  ),
-                  Expanded(
-                      child: Divider(
-                          color: _subtle(context).withValues(alpha: 0.4))),
-                ],
-              ),
-              const SizedBox(height: 24),
-              Container(
-                padding: const EdgeInsets.all(16),
+      body: Column(
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: RepaintBoundary(
+              child: Container(
                 decoration: BoxDecoration(
-                  color: _surfaceCard(context),
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(
-                      color: _isDark(context)
-                          ? Colors.white10
-                          : Colors.black.withValues(alpha: 0.04)),
-                  boxShadow: [
-                    BoxShadow(
-                        color: _shadow(context),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4)),
-                  ],
+                  color: kBgGrey,
+                  borderRadius: BorderRadius.circular(16),
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                child: Row(
                   children: [
-                    Text('Enter code',
-                        style: TextStyle(
-                            color: _subtle(context), fontSize: 12)),
-                    const SizedBox(height: 4),
-                    TextField(
-                      controller: codeController,
-                      textCapitalization: TextCapitalization.characters,
-                      style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          letterSpacing: 2),
-                      decoration: InputDecoration(
-                        hintText: 'e.g. ABC-123-XYZ',
-                        hintStyle: TextStyle(
-                            color: _subtle(context).withValues(alpha: 0.5),
-                            letterSpacing: 1,
-                            fontWeight: FontWeight.normal),
-                        border: InputBorder.none,
-                        isDense: true,
-                        contentPadding: EdgeInsets.zero,
+                    const Padding(
+                      padding: EdgeInsets.only(left: 20, right: 12),
+                      child: Icon(Icons.person_outline, color: kBlack),
+                    ),
+                    Expanded(
+                      child: TextField(
+                        controller: _codeController,
+                        style: const TextStyle(fontSize: 16, color: kBlack, fontWeight: FontWeight.w500),
+                        decoration: const InputDecoration(
+                          hintText: 'Enter recipient code',
+                          hintStyle: TextStyle(color: kTextGrey, fontSize: 16),
+                          border: InputBorder.none,
+                          contentPadding: EdgeInsets.symmetric(vertical: 18),
+                        ),
                       ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 30),
-              SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: ElevatedButton(
-                  onPressed: _isChecking ? null : _processSend,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: _buttonBg(context),
-                    foregroundColor: _onButton(context),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(18)),
-                    elevation: 0,
-                  ),
-                  child: _isChecking
-                      ? const Row(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            SizedBox(
-                                height: 20,
-                                width: 20,
-                                child: CircularProgressIndicator(
-                                    color: Colors.white, strokeWidth: 2)),
-                            SizedBox(width: 12),
-                            Text('Verifying...',
-                                style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w600)),
-                          ],
-                        )
-                      : const Text('Continue',
-                          style: TextStyle(
-                              fontSize: 16, fontWeight: FontWeight.w600)),
+            ),
+          ),
+          
+          const SizedBox(height: 10),
+          Text('৳$_amount', style: const TextStyle(fontSize: 48, fontWeight: FontWeight.bold, color: kBlack)),
+          const SizedBox(height: 8),
+          ValueListenableBuilder<double>(
+            valueListenable: balanceNotifier,
+            builder: (context, balance, _) => Text('Available: ${formatMoney(balance)}', style: const TextStyle(color: kTextGrey)),
+          ),
+          const Spacer(),
+          
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 40),
+            child: Column(
+              children: [
+                _buildKeyRow(['1', '2', '3']),
+                _buildKeyRow(['4', '5', '6']),
+                _buildKeyRow(['7', '8', '9']),
+                _buildKeyRow(['.', '0', 'back']),
+              ],
+            ),
+          ),
+          const SizedBox(height: 20),
+          
+          Padding(
+            padding: const EdgeInsets.all(20),
+            child: SizedBox(
+              width: double.infinity,
+              height: 56,
+              child: ElevatedButton(
+                onPressed: _processTransfer,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: kBlack,
+                  foregroundColor: kWhite,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                ),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.lock, size: 18),
+                    SizedBox(width: 8),
+                    Text('Confirm Transfer', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  ],
                 ),
               ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildKeyRow(List<String> keys) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      children: keys.map((k) {
+        return InkWell(
+          onTap: () => _onKeyPress(k),
+          borderRadius: BorderRadius.circular(40),
+          child: Container(
+            width: 70, height: 70,
+            alignment: Alignment.center,
+            child: k == 'back'
+                ? const Icon(Icons.backspace_outlined, color: kBlack)
+                : Text(k, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w500, color: kBlack)),
+          ),
+        );
+      }).toList(),
+    );
+  }
+}
+
+// =============================================================================
+// RECEIVE PAGE
+// =============================================================================
+class ReceivePage extends StatelessWidget {
+  const ReceivePage({super.key});
+  static const String _paymentCode = '4015 5587 9985 3279';
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: kBgGrey,
+      appBar: AppBar(
+        backgroundColor: kBgGrey,
+        elevation: 0,
+        leading: IconButton(icon: const Icon(Icons.arrow_back, color: kBlack), onPressed: () => Navigator.pop(context)),
+        title: const Text('Receive Money', style: TextStyle(color: kBlack, fontWeight: FontWeight.bold)),
+        centerTitle: true,
+      ),
+      body: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(24),
+                decoration: BoxDecoration(color: kWhite, borderRadius: BorderRadius.circular(24)),
+                child: QrImageView(
+                  data: 'wallet://pay?code=$_paymentCode',
+                  version: QrVersions.auto,
+                  size: 200,
+                  backgroundColor: kWhite,
+                  eyeStyle: const QrEyeStyle(eyeShape: QrEyeShape.square, color: kBlack),
+                  dataModuleStyle: const QrDataModuleStyle(dataModuleShape: QrDataModuleShape.square, color: kBlack),
+                ),
+              ),
+              const SizedBox(height: 30),
+              const Text('Scan to pay me', style: TextStyle(color: kTextGrey, fontSize: 16)),
               const SizedBox(height: 20),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
+                decoration: BoxDecoration(color: kWhite, borderRadius: BorderRadius.circular(16)),
+                child: const Text(_paymentCode, style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, letterSpacing: 2, color: kBlack)),
+              ),
+              const SizedBox(height: 30),
+              SizedBox(
+                width: double.infinity, height: 56,
+                child: ElevatedButton.icon(
+                  onPressed: () {
+                    Clipboard.setData(const ClipboardData(text: _paymentCode));
+                    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Code copied!')));
+                  },
+                  icon: const Icon(Icons.copy),
+                  label: const Text('Copy Code'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: kBlack, foregroundColor: kWhite,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                  ),
+                ),
+              ),
             ],
           ),
         ),
@@ -1623,28 +2414,21 @@ class _SendPageState extends State<SendPage> {
   }
 }
 
-// -----------------------------------------------------------------------------
-// QR scanner
-// -----------------------------------------------------------------------------
-// Accepts both `wallet://pay?code=...` URIs and plain text codes. The
-// extracted code is returned to the caller.
-// -----------------------------------------------------------------------------
-
-class QrScannerScreen extends StatefulWidget {
-  const QrScannerScreen({super.key});
-
+// =============================================================================
+// QR SCANNER
+// =============================================================================
+class QrScannerPage extends StatefulWidget {
+  const QrScannerPage({super.key});
   @override
-  State<QrScannerScreen> createState() => _QrScannerScreenState();
+  State<QrScannerPage> createState() => _QrScannerPageState();
 }
 
-class _QrScannerScreenState extends State<QrScannerScreen> {
-  final MobileScannerController controller = MobileScannerController(
-    detectionSpeed: DetectionSpeed.noDuplicates,
-  );
+class _QrScannerPageState extends State<QrScannerPage> {
+  final MobileScannerController _controller = MobileScannerController(detectionSpeed: DetectionSpeed.noDuplicates);
 
   @override
   void dispose() {
-    controller.dispose();
+    _controller.dispose();
     super.dispose();
   }
 
@@ -1653,20 +2437,20 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
-        title: const Text('Scan QR Code'),
-        backgroundColor: Colors.transparent,
-        foregroundColor: Colors.white,
+        backgroundColor: Colors.black,
         elevation: 0,
+        iconTheme: const IconThemeData(color: kWhite),
+        title: const Text('Scan QR', style: TextStyle(color: kWhite, fontWeight: FontWeight.bold)),
+        centerTitle: true,
       ),
       body: Stack(
         children: [
           MobileScanner(
-            controller: controller,
+            controller: _controller,
             onDetect: (capture) {
               for (final barcode in capture.barcodes) {
                 final raw = barcode.rawValue;
                 if (raw == null) continue;
-
                 var code = raw;
                 if (raw.startsWith('wallet://pay') || raw.contains('code=')) {
                   try {
@@ -1680,24 +2464,13 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
           ),
           Center(
             child: Container(
-              width: 250,
-              height: 250,
-              decoration: BoxDecoration(
-                border: Border.all(color: const Color(0xFF006A4E), width: 3),
-                borderRadius: BorderRadius.circular(24),
-              ),
+              width: 250, height: 250,
+              decoration: BoxDecoration(border: Border.all(color: kWhite, width: 4), borderRadius: BorderRadius.circular(30)),
             ),
           ),
           const Positioned(
-            bottom: 50,
-            left: 0,
-            right: 0,
-            child: Center(
-              child: Text(
-                'Align QR code within the frame',
-                style: TextStyle(color: Colors.white, fontSize: 16),
-              ),
-            ),
+            bottom: 60, left: 0, right: 0,
+            child: Center(child: Text('Align QR within the frame', style: TextStyle(color: kWhite, fontSize: 16))),
           ),
         ],
       ),
@@ -1705,239 +2478,58 @@ class _QrScannerScreenState extends State<QrScannerScreen> {
   }
 }
 
-class _ScannerCorners extends StatelessWidget {
-  const _ScannerCorners();
+// =============================================================================
+// SUCCESS PAGE
+// =============================================================================
+class SuccessPage extends StatelessWidget {
+  const SuccessPage({super.key});
 
   @override
   Widget build(BuildContext context) {
-    const len = 28.0;
-    const thick = 3.0;
-    const pad = 20.0;
-    const color = Color(0xFF006A4E);
-
-    Widget corner({required bool top, required bool left}) => Positioned(
-          top: top ? pad : null,
-          bottom: top ? null : pad,
-          left: left ? pad : null,
-          right: left ? null : pad,
-          child: SizedBox(
-            width: len,
-            height: len,
-            child: CustomPaint(
-              painter: _CornerPainter(
-                  color: color, thickness: thick, top: top, left: left),
-            ),
-          ),
-        );
-
-    return Stack(children: [
-      corner(top: true, left: true),
-      corner(top: true, left: false),
-      corner(top: false, left: true),
-      corner(top: false, left: false),
-    ]);
-  }
-}
-
-class _CornerPainter extends CustomPainter {
-  final Color color;
-  final double thickness;
-  final bool top;
-  final bool left;
-
-  _CornerPainter({
-    required this.color,
-    required this.thickness,
-    required this.top,
-    required this.left,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final p = Paint()
-      ..color = color
-      ..strokeWidth = thickness
-      ..strokeCap = StrokeCap.round
-      ..style = PaintingStyle.stroke;
-    final y = top ? 0.0 : size.height;
-    final x = left ? 0.0 : size.width;
-    final yEnd = top ? size.height : 0.0;
-    final xEnd = left ? size.width : 0.0;
-
-    canvas.drawLine(Offset(x, y), Offset(xEnd, y), p);
-    canvas.drawLine(Offset(x, y), Offset(x, yEnd), p);
-  }
-
-  @override
-  bool shouldRepaint(covariant _CornerPainter old) =>
-      old.top != top || old.left != left;
-}
-
-// -----------------------------------------------------------------------------
-// Receive page
-// -----------------------------------------------------------------------------
-// `_paymentCode` and `_qrPayload` are mocked. Replace with values from
-// GET /me/payment-code. The QR payload must match the scanner's expected
-// `wallet://pay?code=<CODE>` format.
-// -----------------------------------------------------------------------------
-
-class ReceivePage extends StatefulWidget {
-  const ReceivePage({super.key});
-
-  @override
-  State<ReceivePage> createState() => _ReceivePageState();
-}
-
-class _ReceivePageState extends State<ReceivePage> {
-  static const String _paymentCode = 'PAY-7K2D-9XFQ';
-  static const String _qrPayload = 'wallet://pay?code=$_paymentCode';
-
-  void _copyCode() {
-    Clipboard.setData(const ClipboardData(text: _paymentCode));
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Payment code copied')),
-    );
-  }
-
-  Future<void> _shareCode() async {
-    const text =
-        'Pay me using my Synapse Wallet code: $_paymentCode\n\nOr scan my QR code in the app.';
-    await Share.share(text);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      height: double.infinity,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [_pageTop(context), _pageBottom(context)],
-        ),
-      ),
-      child: SafeArea(
-        bottom: false,
+    final now = DateTime.now();
+    return Scaffold(
+      backgroundColor: kBgGrey,
+      body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+          padding: const EdgeInsets.all(24),
           child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Receive Money',
-                  style: TextStyle(
-                      fontSize: 28, fontWeight: FontWeight.bold)),
-              const SizedBox(height: 4),
-              Text('Scan the QR or share your payment code',
-                  style: TextStyle(color: _muted(context), fontSize: 14)),
-              const SizedBox(height: 28),
+              const SizedBox(height: 40),
               Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(24),
-                decoration: BoxDecoration(
-                  color: _heroCard(context),
-                  borderRadius: BorderRadius.circular(24),
-                  border: Border.all(
-                      color: _isDark(context)
-                          ? Colors.white10
-                          : Colors.black.withValues(alpha: 0.04)),
-                  boxShadow: [
-                    BoxShadow(
-                        color: _shadow(context),
-                        blurRadius: 20,
-                        offset: const Offset(0, 10)),
-                  ],
-                ),
-                child: Column(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(16),
-                      decoration: BoxDecoration(
-                          color: Colors.white,
-                          borderRadius: BorderRadius.circular(20)),
-                      child: QrImageView(
-                        data: _qrPayload,
-                        version: QrVersions.auto,
-                        size: 200,
-                        backgroundColor: Colors.white,
-                        eyeStyle: const QrEyeStyle(
-                            eyeShape: QrEyeShape.square,
-                            color: Color(0xFF24252A)),
-                        dataModuleStyle: const QrDataModuleStyle(
-                            dataModuleShape: QrDataModuleShape.square,
-                            color: Color(0xFF24252A)),
-                      ),
-                    ),
-                    const SizedBox(height: 20),
-                    Text('Scan to pay me',
-                        style: TextStyle(
-                            color: _onHeroMuted(context), fontSize: 13)),
-                  ],
-                ),
+                width: 100, height: 100,
+                decoration: const BoxDecoration(color: kBlack, shape: BoxShape.circle),
+                child: const Icon(Icons.check, size: 50, color: kWhite),
               ),
               const SizedBox(height: 24),
+              const Text('Transaction Successful', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: kBlack)),
+              const SizedBox(height: 40),
+              
               Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: _surfaceCard(context),
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(
-                      color: _isDark(context)
-                          ? Colors.white10
-                          : Colors.black.withValues(alpha: 0.04)),
-                  boxShadow: [
-                    BoxShadow(
-                        color: _shadow(context),
-                        blurRadius: 10,
-                        offset: const Offset(0, 4)),
-                  ],
-                ),
-                child: Row(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(color: kWhite, borderRadius: BorderRadius.circular(20)),
+                child: Column(
                   children: [
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('Payment code',
-                              style: TextStyle(
-                                  color: _subtle(context), fontSize: 12)),
-                          const SizedBox(height: 4),
-                          const Text(_paymentCode,
-                              style: TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 2)),
-                        ],
-                      ),
-                    ),
-                    IconButton(
-                      onPressed: _copyCode,
-                      icon: const Icon(Icons.copy_rounded),
-                      tooltip: 'Copy',
-                    ),
+                    const _DetailRow(label: 'Status', value: 'Completed', valueColor: kGreen),
+                    const Divider(height: 24),
+                    _DetailRow(label: 'Reference', value: 'REF${now.millisecondsSinceEpoch.toString().substring(7)}'),
+                    const Divider(height: 24),
+                    _DetailRow(label: 'Date', value: '${now.day}/${now.month}/${now.year}'),
                   ],
                 ),
               ),
-              const SizedBox(height: 16),
+              
+              const SizedBox(height: 40),
               SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: ElevatedButton.icon(
-                  onPressed: _shareCode,
-                  icon: const Icon(Icons.share_outlined),
-                  label: const Text('Share payment code',
-                      style: TextStyle(
-                          fontSize: 16, fontWeight: FontWeight.w600)),
+                width: double.infinity, height: 56,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.popUntil(context, (route) => route.isFirst),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: _buttonBg(context),
-                    foregroundColor: _onButton(context),
-                    shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(18)),
-                    elevation: 0,
+                    backgroundColor: kBlack, foregroundColor: kWhite,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   ),
+                  child: const Text('Back to Home', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                 ),
               ),
-              const SizedBox(height: 20),
             ],
           ),
         ),
@@ -1946,28 +2538,572 @@ class _ReceivePageState extends State<ReceivePage> {
   }
 }
 
-// -----------------------------------------------------------------------------
-// Profile page
-// -----------------------------------------------------------------------------
+class _DetailRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final Color? valueColor;
+  const _DetailRow({required this.label, required this.value, this.valueColor});
 
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: const TextStyle(color: kTextGrey, fontSize: 14)),
+        Text(value, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: valueColor ?? kBlack)),
+      ],
+    );
+  }
+}
+
+// =============================================================================
+// BILL PAYMENT PAGE
+// =============================================================================
+class BillPaymentPage extends StatefulWidget {
+  final String billerName;
+  final String idLabel;
+
+  const BillPaymentPage({super.key, required this.billerName, required this.idLabel});
+
+  @override
+  State<BillPaymentPage> createState() => _BillPaymentPageState();
+}
+
+class _BillPaymentPageState extends State<BillPaymentPage> {
+  final _idController = TextEditingController();
+  bool _isLoading = false;
+  double? _dueAmount;
+
+  @override
+  void dispose() {
+    _idController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _checkBill() async {
+    final id = _idController.text.trim();
+    if (id.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Please enter ${widget.idLabel}')));
+      return;
+    }
+
+    FocusScope.of(context).unfocus();
+    setState(() => _isLoading = true);
+
+    await Future.delayed(const Duration(milliseconds: 1500));
+
+    if (!mounted) return;
+    setState(() {
+      _isLoading = false;
+      _dueAmount = (id.hashCode % 500) + 45.50; 
+    });
+  }
+
+  Future<void> _processPayment() async {
+    if (_dueAmount! > balanceNotifier.value) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        backgroundColor: kRed,
+        content: Text('Insufficient balance. Please take a loan or receive money.'),
+      ));
+      return;
+    }
+
+    bool authorized = false;
+    if (userNotifier.value.isBiometricEnabled) {
+      authorized = await _authenticateBiometrics(context);
+      if (!authorized) authorized = await _showPasswordDialog(context);
+    } else {
+      authorized = await _showPasswordDialog(context);
+    }
+
+    if (!authorized) return;
+    if (!mounted) return;
+
+    _addTransaction(Tx(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      title: widget.billerName,
+      subtitle: 'Bill Payment',
+      amount: -_dueAmount!,
+      time: 'Just now',
+      icon: Icons.receipt_long,
+      isIncome: false,
+    ));
+
+    Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const SuccessPage()));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: kBgGrey,
+      appBar: AppBar(
+        backgroundColor: kBgGrey,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: kBlack), 
+          onPressed: () {
+            if (_dueAmount != null) {
+              setState(() => _dueAmount = null);
+            } else {
+              Navigator.pop(context);
+            }
+          }
+        ),
+        title: Text(widget.billerName, style: const TextStyle(color: kBlack, fontWeight: FontWeight.bold)),
+        centerTitle: true,
+      ),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: _dueAmount == null ? _buildInputScreen() : _buildBillScreen(),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInputScreen() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 20),
+        const Icon(Icons.receipt_long, size: 60, color: kBlack),
+        const SizedBox(height: 24),
+        Text('Pay ${widget.billerName} Bill', style: const TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: kBlack)),
+        const SizedBox(height: 8),
+        Text('Enter your ${widget.idLabel} to fetch the current due amount.', style: const TextStyle(color: kTextGrey)),
+        const SizedBox(height: 40),
+        
+        RepaintBoundary(
+          child: Container(
+            decoration: BoxDecoration(color: kWhite, borderRadius: BorderRadius.circular(16)),
+            child: Row(
+              children: [
+                const Padding(
+                  padding: EdgeInsets.only(left: 20, right: 12),
+                  child: Icon(Icons.numbers, color: kTextGrey),
+                ),
+                Expanded(
+                  child: TextField(
+                    controller: _idController,
+                    keyboardType: TextInputType.number,
+                    style: const TextStyle(fontSize: 16, color: kBlack),
+                    decoration: InputDecoration(
+                      hintText: widget.idLabel,
+                      hintStyle: const TextStyle(color: kTextGrey),
+                      border: InputBorder.none,
+                      contentPadding: const EdgeInsets.symmetric(vertical: 20),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        
+        const SizedBox(height: 30),
+        SizedBox(
+          width: double.infinity,
+          height: 56,
+          child: ElevatedButton(
+            onPressed: _isLoading ? null : _checkBill,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: kBlack,
+              foregroundColor: kWhite,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            ),
+            child: _isLoading 
+              ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(color: kWhite, strokeWidth: 2))
+              : const Text('Check Bill', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildBillScreen() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 20),
+        Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(24),
+          decoration: BoxDecoration(color: kBlack, borderRadius: BorderRadius.circular(24)),
+          child: Column(
+            children: [
+              const Icon(Icons.account_balance_wallet, color: kWhite, size: 40),
+              const SizedBox(height: 16),
+              const Text('Total Due', style: TextStyle(color: Colors.white70, fontSize: 16)),
+              const SizedBox(height: 8),
+              Text('৳${_dueAmount!.toStringAsFixed(2)}', style: const TextStyle(color: kWhite, fontSize: 36, fontWeight: FontWeight.bold)),
+            ],
+          ),
+        ),
+        const SizedBox(height: 30),
+        
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(color: kWhite, borderRadius: BorderRadius.circular(16)),
+          child: Column(
+            children: [
+              _buildDetailRow('Biller', widget.billerName),
+              const Divider(height: 24),
+              _buildDetailRow(widget.idLabel, _idController.text),
+              const Divider(height: 24),
+              _buildDetailRow('Status', 'Unpaid', valueColor: Colors.orange),
+            ],
+          ),
+        ),
+        
+        const SizedBox(height: 40),
+        SizedBox(
+          width: double.infinity,
+          height: 56,
+          child: ElevatedButton(
+            onPressed: _processPayment,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: kBlack,
+              foregroundColor: kWhite,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.lock, size: 18),
+                const SizedBox(width: 8),
+                Text('Pay ৳${_dueAmount!.toStringAsFixed(2)}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value, {Color? valueColor}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: const TextStyle(color: kTextGrey, fontSize: 14)),
+        Text(value, style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: valueColor ?? kBlack)),
+      ],
+    );
+  }
+}
+
+// =============================================================================
+// EDUCATION PAYMENT PAGE
+// =============================================================================
+class EducationPaymentPage extends StatefulWidget {
+  final String institutionName;
+  final bool isUniversity;
+
+  const EducationPaymentPage({super.key, required this.institutionName, required this.isUniversity});
+
+  @override
+  State<EducationPaymentPage> createState() => _EducationPaymentPageState();
+}
+
+class _EducationPaymentPageState extends State<EducationPaymentPage> {
+  final _idController = TextEditingController();
+  final _amountController = TextEditingController();
+  bool _isLoading = false;
+  String? _studentName;
+  String? _studentDepartment;
+
+  final List<String> _bdNames = [
+    "Tanvir Hossain", "Sajid Hasan", "Raiyan Sarker", "Mehedi Hasan", 
+    "Rafiul Islam", "Fahim Shahriar", "Nusrat Jahan", "Tasnim Rahman", 
+    "Arif Chowdhury", "Sumaiya Akter", "Mahmudul Hasan", "Sadia Islam"
+  ];
+
+  final List<String> _departments = [
+    "Computer Science & Engineering (CSE)", 
+    "Bachelor of Business Administration (BBA)", 
+    "Electrical & Electronic Engineering (EEE)", 
+    "English Literature", 
+    "Pharmacy", 
+    "Architecture"
+  ];
+
+  @override
+  void dispose() {
+    _idController.dispose();
+    _amountController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _findStudent() async {
+    final id = _idController.text.trim();
+    if (id.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter Student ID')));
+      return;
+    }
+
+    FocusScope.of(context).unfocus();
+    setState(() => _isLoading = true);
+
+    await Future.delayed(const Duration(milliseconds: 1500));
+
+    if (!mounted) return;
+    
+    final nameIndex = (id.hashCode % _bdNames.length).abs();
+    
+    setState(() {
+      _isLoading = false;
+      _studentName = _bdNames[nameIndex];
+      if (widget.isUniversity) {
+        final deptIndex = (id.hashCode % _departments.length).abs();
+        _studentDepartment = _departments[deptIndex];
+      }
+    });
+  }
+
+  Future<void> _processPayment() async {
+    final amount = double.tryParse(_amountController.text.trim()) ?? 0;
+    if (amount <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a valid amount')));
+      return;
+    }
+
+    if (amount > balanceNotifier.value) {
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+        backgroundColor: kRed,
+        content: Text('Insufficient balance. Please take a loan or receive money.'),
+      ));
+      return;
+    }
+
+    bool authorized = false;
+    if (userNotifier.value.isBiometricEnabled) {
+      authorized = await _authenticateBiometrics(context);
+      if (!authorized) authorized = await _showPasswordDialog(context);
+    } else {
+      authorized = await _showPasswordDialog(context);
+    }
+
+    if (!authorized) return;
+    if (!mounted) return;
+
+    _addTransaction(Tx(
+      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      title: widget.institutionName,
+      subtitle: 'Education Payment',
+      amount: -amount,
+      time: 'Just now',
+      icon: Icons.school,
+      isIncome: false,
+    ));
+
+    Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const SuccessPage()));
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: kBgGrey,
+      appBar: AppBar(
+        backgroundColor: kBgGrey,
+        elevation: 0,
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back, color: kBlack), 
+          onPressed: () {
+            if (_studentName != null) {
+              setState(() {
+                _studentName = null;
+                _studentDepartment = null;
+              });
+            } else {
+              Navigator.pop(context);
+            }
+          }
+        ),
+        title: const Text('Education Payment', style: TextStyle(color: kBlack, fontWeight: FontWeight.bold)),
+        centerTitle: true,
+      ),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: _studentName == null ? _buildInputScreen() : _buildStudentInfoScreen(),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildInputScreen() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 20),
+        const Icon(Icons.school, size: 60, color: kBlack),
+        const SizedBox(height: 24),
+        Text(widget.institutionName, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: kBlack)),
+        const SizedBox(height: 8),
+        const Text('Enter the Student ID to fetch details.', style: TextStyle(color: kTextGrey)),
+        const SizedBox(height: 40),
+        
+        RepaintBoundary(
+          child: Container(
+            decoration: BoxDecoration(color: kWhite, borderRadius: BorderRadius.circular(16)),
+            child: Row(
+              children: [
+                const Padding(
+                  padding: EdgeInsets.only(left: 20, right: 12),
+                  child: Icon(Icons.badge_outlined, color: kTextGrey),
+                ),
+                Expanded(
+                  child: TextField(
+                    controller: _idController,
+                    keyboardType: TextInputType.text,
+                    style: const TextStyle(fontSize: 16, color: kBlack),
+                    decoration: const InputDecoration(
+                      hintText: 'Student ID',
+                      hintStyle: TextStyle(color: kTextGrey),
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.symmetric(vertical: 20),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        
+        const SizedBox(height: 30),
+        SizedBox(
+          width: double.infinity,
+          height: 56,
+          child: ElevatedButton(
+            onPressed: _isLoading ? null : _findStudent,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: kBlack,
+              foregroundColor: kWhite,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            ),
+            child: _isLoading 
+              ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(color: kWhite, strokeWidth: 2))
+              : const Text('Find Student', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStudentInfoScreen() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 20),
+        const Icon(Icons.person, size: 60, color: kBlack),
+        const SizedBox(height: 24),
+        const Text('Student Details', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: kBlack)),
+        const SizedBox(height: 8),
+        const Text('Enter the amount you want to pay for this student.', style: TextStyle(color: kTextGrey)),
+        const SizedBox(height: 30),
+        
+        Container(
+          padding: const EdgeInsets.all(20),
+          decoration: BoxDecoration(color: kWhite, borderRadius: BorderRadius.circular(16)),
+          child: Column(
+            children: [
+              _buildDetailRow('Institution', widget.institutionName),
+              const Divider(height: 24),
+              _buildDetailRow('Student Name', _studentName!),
+              if (widget.isUniversity) ...[
+                const Divider(height: 24),
+                _buildDetailRow('Department', _studentDepartment!),
+              ],
+              const Divider(height: 24),
+              _buildDetailRow('Student ID', _idController.text),
+            ],
+          ),
+        ),
+        
+        const SizedBox(height: 30),
+        const Text('Amount to Pay (৳)', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: kBlack)),
+        const SizedBox(height: 10),
+        RepaintBoundary(
+          child: Container(
+            decoration: BoxDecoration(color: kWhite, borderRadius: BorderRadius.circular(16)),
+            child: Row(
+              children: [
+                const Padding(
+                  padding: EdgeInsets.only(left: 20, right: 12),
+                  child: Text('৳', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: kBlack)),
+                ),
+                Expanded(
+                  child: TextField(
+                    controller: _amountController,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: kBlack),
+                    decoration: const InputDecoration(
+                      hintText: '0.00',
+                      hintStyle: TextStyle(color: kTextGrey),
+                      border: InputBorder.none,
+                      contentPadding: EdgeInsets.symmetric(vertical: 20),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        
+        const SizedBox(height: 40),
+        SizedBox(
+          width: double.infinity,
+          height: 56,
+          child: ElevatedButton(
+            onPressed: _processPayment,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: kBlack,
+              foregroundColor: kWhite,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            ),
+            child: const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.lock, size: 18),
+                SizedBox(width: 8),
+                Text('Proceed to Pay', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildDetailRow(String label, String value, {Color? valueColor}) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: const TextStyle(color: kTextGrey, fontSize: 14)),
+        Expanded(
+          child: Text(
+            value, 
+            textAlign: TextAlign.right,
+            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: valueColor ?? kBlack),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// =============================================================================
+// PROFILE PAGE
+// =============================================================================
 class ProfilePage extends StatefulWidget {
   const ProfilePage({super.key});
-
   @override
   State<ProfilePage> createState() => _ProfilePageState();
 }
 
 class _ProfilePageState extends State<ProfilePage> {
-  void _toast(String msg) {
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(msg)));
-  }
-
   Future<void> _pickAvatar() async {
     final picked = await ImagePicker().pickImage(source: ImageSource.gallery);
-    if (picked != null) {
-      userNotifier.value = userNotifier.value.copyWith(avatarPath: picked.path);
-      _toast('Profile photo updated');
-    }
+    if (picked != null) userNotifier.value = userNotifier.value.copyWith(avatarPath: picked.path);
   }
 
   Future<void> _editName() async {
@@ -1976,44 +3112,33 @@ class _ProfilePageState extends State<ProfilePage> {
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Change name'),
-        content: TextField(
-          controller: ctrl,
-          autofocus: true,
-          decoration: const InputDecoration(labelText: 'Name'),
+        content: RepaintBoundary(
+          child: TextField(
+            controller: ctrl, 
+            decoration: const InputDecoration(
+              labelText: 'Name',
+              hintStyle: TextStyle(color: kTextGrey),
+            ),
+          ),
         ),
         actions: [
-          TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel')),
-          TextButton(
-              onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
-              child: const Text('Save')),
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(ctx, ctrl.text.trim()), child: const Text('Save')),
         ],
       ),
     );
     ctrl.dispose();
-    if (result != null &&
-        result.isNotEmpty &&
-        result != userNotifier.value.name) {
+    if (result != null && result.isNotEmpty && result != userNotifier.value.name) {
       userNotifier.value = userNotifier.value.copyWith(name: result);
-      _toast('Name updated');
     }
   }
 
   Future<void> _toggleBiometrics(bool value) async {
     if (value) {
       final auth = await _authenticateBiometrics(context);
-      if (auth) {
-        userNotifier.value =
-            userNotifier.value.copyWith(isBiometricEnabled: true);
-        _toast('Biometrics enabled. Quick Login active.');
-      } else {
-        _toast('Authentication failed');
-      }
+      if (auth) userNotifier.value = userNotifier.value.copyWith(isBiometricEnabled: true);
     } else {
-      userNotifier.value =
-          userNotifier.value.copyWith(isBiometricEnabled: false);
-      _toast('Biometrics disabled');
+      userNotifier.value = userNotifier.value.copyWith(isBiometricEnabled: false);
     }
   }
 
@@ -2024,17 +3149,10 @@ class _ProfilePageState extends State<ProfilePage> {
         title: const Text('Log out?'),
         content: const Text('Are you sure you want to log out?'),
         actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
           TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: const Text('Cancel')),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              // Keep userNotifier intact so quick biometric login still works.
-              authNotifier.value = false;
-            },
-            child:
-                const Text('Log out', style: TextStyle(color: Color(0xFFF42A41))),
+            onPressed: () { Navigator.pop(ctx); authNotifier.value = false; },
+            child: const Text('Log out', style: TextStyle(color: kRed)),
           ),
         ],
       ),
@@ -2043,206 +3161,69 @@ class _ProfilePageState extends State<ProfilePage> {
 
   @override
   Widget build(BuildContext context) {
-    final card = _surfaceCard(context);
-    final muted = _muted(context);
-
-    return Container(
-      width: double.infinity,
-      height: double.infinity,
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [_pageTop(context), _pageBottom(context)],
-        ),
-      ),
-      child: SafeArea(
-        bottom: false,
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 8),
-              const Text('Profile',
-                  style: TextStyle(
-                      fontSize: 28, fontWeight: FontWeight.bold)),
-              Text('Manage your account',
-                  style: TextStyle(color: muted, fontSize: 14)),
-              const SizedBox(height: 24),
-              ValueListenableBuilder<UserState>(
-                valueListenable: userNotifier,
-                builder: (context, user, _) => Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: card,
-                    borderRadius: BorderRadius.circular(24),
-                    border: Border.all(
-                        color: _isDark(context)
-                            ? Colors.white10
-                            : Colors.black.withValues(alpha: 0.04)),
-                    boxShadow: [
-                      BoxShadow(
-                          color: _shadow(context),
-                          blurRadius: 20,
-                          offset: const Offset(0, 10)),
-                    ],
-                  ),
-                  child: Column(
-                    children: [
-                      GestureDetector(
-                        onTap: _pickAvatar,
-                        child: Stack(
-                          children: [
-                            CircleAvatar(
-                                radius: 48,
-                                backgroundImage: _avatarProvider(user)),
-                            Positioned(
-                              bottom: 0,
-                              right: 0,
-                              child: Container(
-                                padding: const EdgeInsets.all(7),
-                                decoration: const BoxDecoration(
-                                    color: Color(0xFF006A4E),
-                                    shape: BoxShape.circle),
-                                child: const Icon(Icons.camera_alt,
-                                    size: 16, color: Colors.white),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      const SizedBox(height: 14),
-                      Text(user.name,
-                          style: const TextStyle(
-                              fontSize: 20, fontWeight: FontWeight.bold)),
-                      const SizedBox(height: 6),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.badge_outlined, size: 14, color: muted),
-                          const SizedBox(width: 4),
-                          Text('ID: ${user.bankId}',
-                              style: TextStyle(
-                                  color: muted,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w500)),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Container(
-                decoration: BoxDecoration(
-                  color: card,
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(
-                      color: _isDark(context)
-                          ? Colors.white10
-                          : Colors.black.withValues(alpha: 0.04)),
-                  boxShadow: [
-                    BoxShadow(
-                        color: _shadow(context),
-                        blurRadius: 16,
-                        offset: const Offset(0, 8)),
-                  ],
-                ),
-                child: Column(
-                  children: [
-                    ListTile(
-                      leading: const Icon(Icons.person_outline),
-                      title: const Text('Change name'),
-                      trailing: const Icon(Icons.chevron_right),
-                      onTap: _editName,
-                    ),
-                    const Divider(height: 1, indent: 16, endIndent: 16),
-                    ValueListenableBuilder<UserState>(
-                      valueListenable: userNotifier,
-                      builder: (context, user, _) => SwitchListTile(
-                        secondary: const Icon(Icons.fingerprint),
-                        title: const Text('Biometric Security'),
-                        subtitle: const Text(
-                            'Required for Sending & Quick Login'),
-                        value: user.isBiometricEnabled,
-                        activeThumbColor: const Color(0xFF006A4E),
-                        onChanged: _toggleBiometrics,
-                      ),
-                    ),
-                    const Divider(height: 1, indent: 16, endIndent: 16),
-                    ValueListenableBuilder<bool>(
-                      valueListenable: darkModeNotifier,
-                      builder: (context, isDark, _) => SwitchListTile(
-                        secondary:
-                            Icon(isDark ? Icons.dark_mode : Icons.light_mode),
-                        title: const Text('Dark mode'),
-                        value: isDark,
-                        activeThumbColor: const Color(0xFF006A4E),
-                        onChanged: (v) => darkModeNotifier.value = v,
-                      ),
-                    ),
-                    const Divider(height: 1, indent: 16, endIndent: 16),
-                    ListTile(
-                      leading: const Icon(Icons.logout,
-                          color: Color(0xFFF42A41)),
-                      title: const Text('Log out',
-                          style: TextStyle(color: Color(0xFFF42A41))),
-                      onTap: _confirmLogout,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
-              Center(
-                child: Text('v1.0.0',
-                    style: TextStyle(color: muted, fontSize: 12)),
-              ),
-              const SizedBox(height: 20),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// -----------------------------------------------------------------------------
-// All transactions page
-// -----------------------------------------------------------------------------
-
-class TransactionsPage extends StatelessWidget {
-  const TransactionsPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: kBgGrey,
       appBar: AppBar(
-        title: const Text('All Transactions'),
-        backgroundColor: _surfaceCard(context),
-        foregroundColor: _onHero(context),
+        backgroundColor: kBgGrey,
         elevation: 0,
-        scrolledUnderElevation: 0,
+        leading: IconButton(icon: const Icon(Icons.arrow_back, color: kBlack), onPressed: () => Navigator.pop(context)),
+        title: const Text('Settings', style: TextStyle(color: kBlack, fontWeight: FontWeight.bold)),
+        centerTitle: true,
       ),
-      body: Container(
-        width: double.infinity,
-        height: double.infinity,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [_pageTop(context), _pageBottom(context)],
-          ),
-        ),
-        child: SafeArea(
-          child: ListView.separated(
-            padding: const EdgeInsets.all(20),
-            itemCount: allTransactions.length,
-            separatorBuilder: (_, _) => const SizedBox(height: 12),
-            itemBuilder: (context, i) =>
-                _TransactionTile(tx: allTransactions[i]),
-          ),
+      body: ValueListenableBuilder<UserState>(
+        valueListenable: userNotifier,
+        builder: (context, user, _) => ListView(
+          padding: const EdgeInsets.all(24),
+          children: [
+            Center(
+              child: GestureDetector(
+                onTap: _pickAvatar,
+                child: Stack(
+                  children: [
+                    CircleAvatar(radius: 50, backgroundImage: _avatarProvider(user)),
+                    Positioned(
+                      bottom: 0, right: 0,
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: const BoxDecoration(color: kBlack, shape: BoxShape.circle),
+                        child: const Icon(Icons.camera_alt, size: 18, color: kWhite),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            Center(child: Text(user.name, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: kBlack))),
+            Center(child: Text(user.email, style: const TextStyle(color: kTextGrey))),
+            const SizedBox(height: 40),
+            Container(
+              decoration: BoxDecoration(color: kWhite, borderRadius: BorderRadius.circular(16)),
+              child: Column(
+                children: [
+                  ListTile(
+                    leading: const Icon(Icons.person_outline, color: kBlack),
+                    title: const Text('Change name', style: TextStyle(color: kBlack)),
+                    trailing: const Icon(Icons.chevron_right, color: kTextGrey),
+                    onTap: _editName,
+                  ),
+                  SwitchListTile(
+                    secondary: const Icon(Icons.fingerprint, color: kBlack),
+                    title: const Text('Biometric Security', style: TextStyle(color: kBlack)),
+                    subtitle: const Text('Required for sending & quick login'),
+                    value: user.isBiometricEnabled,
+                    activeThumbColor: kBlack,
+                    onChanged: _toggleBiometrics,
+                  ),
+                  ListTile(
+                    leading: const Icon(Icons.logout, color: kRed),
+                    title: const Text('Log out', style: TextStyle(color: kRed, fontWeight: FontWeight.w500)),
+                    onTap: _confirmLogout,
+                  ),
+                ],
+              ),
+            )
+          ],
         ),
       ),
     );
