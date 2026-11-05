@@ -1,5 +1,6 @@
 package synapse.upi.payment;
 
+import java.io.Serializable;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -10,7 +11,9 @@ public record Payment(
     String atomicId,
     PaymentState state,
     String payerVirtualAddress,
-    String payeeVirtualAddress) {
+    String payeeVirtualAddress) implements Serializable {
+
+  private static final long serialVersionUID = 1L;
 
   public Payment {
     Objects.requireNonNull(atomicId, "atomicId");

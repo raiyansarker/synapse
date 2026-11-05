@@ -29,9 +29,9 @@ class PaymentStateMachineTest {
     assertEquals(PaymentState.CREDIT_PENDING, payment.state());
 
     payment = machine.apply(payment, PaymentEvent.CREDIT_APPROVED);
-    assertEquals(PaymentState.NOTIFYING, payment.state());
+    assertEquals(PaymentState.ACKNOWLEDGING, payment.state());
 
-    payment = machine.apply(payment, PaymentEvent.PARTIES_ADVISED);
+    payment = machine.apply(payment, PaymentEvent.PAYER_ACKNOWLEDGED);
     assertEquals(PaymentState.COMPLETED, payment.state());
     assertEquals(atomicId, payment.atomicId());
     assertTrue(payment.state().terminal());
@@ -58,6 +58,19 @@ class PaymentStateMachineTest {
   void rejectedCreditReversesTheDebit() {
     Payment payment = credited();
     payment = machine.apply(payment, PaymentEvent.CREDIT_REJECTED);
+    assertEquals(PaymentState.REVERSAL_PENDING, payment.state());
+
+    payment = machine.apply(payment, PaymentEvent.REVERSAL_APPROVED);
+    assertEquals(PaymentState.REVERSED, payment.state());
+  }
+
+  @Test
+  void failedPayerAcknowledgementReversesTheCredit() {
+    Payment payment = credited();
+    payment = machine.apply(payment, PaymentEvent.CREDIT_APPROVED);
+    assertEquals(PaymentState.ACKNOWLEDGING, payment.state());
+
+    payment = machine.apply(payment, PaymentEvent.PAYER_ACK_FAILED);
     assertEquals(PaymentState.REVERSAL_PENDING, payment.state());
 
     payment = machine.apply(payment, PaymentEvent.REVERSAL_APPROVED);
@@ -108,7 +121,7 @@ class PaymentStateMachineTest {
     for (PaymentState state : PaymentState.values()) {
       transitions += machine.eventsFrom(state).size();
     }
-    assertEquals(10, transitions);
+    assertEquals(11, transitions);
   }
 
   private Payment credited() {

@@ -47,11 +47,11 @@ cp .env.example .env
 ./gradlew bootRun
 ```
 
-Create the database named in `.env.example` before the first start. Hibernate updates the schema from entities on startup. Both apps listen on port 8080, so set `SERVER_PORT` on the second one.
+Create the database named in `.env.example` before the first start. Hibernate updates the schema from entities on startup. The switch listens on port 8080 and the bank on port 9090. Set `SERVER_PORT` to change either one.
 
 Variable names, a local Postgres URL, and a Neon URL are in [apps/upi/README.md](apps/upi/README.md) and [apps/bank/README.md](apps/bank/README.md).
 
-The bank exposes one demo route, `GET /demo/accounts/{id}`, so you can see the shared response shape. Any id other than `missing` returns the account. `missing` returns 404.
+The bank exposes one demo route, `GET http://localhost:9090/demo/accounts/{id}`, so you can see the shared response shape. Any id other than `missing` returns the account. `missing` returns 404.
 
 ## Run the wallet
 
@@ -92,6 +92,7 @@ Failures use the same envelope with `success: false` and an `error` object. Send
 ## Tests
 
 ```bash
-cd apps/upi && ./gradlew test
+cd libs/common && ./gradlew test
 cd apps/bank && ./gradlew test
+cd apps/upi && ./gradlew test
 ```

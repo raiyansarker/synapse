@@ -1,0 +1,52 @@
+# Runs the shared library, then the bank, then UPI. One suite at a time.
+# The context tests need PostgreSQL, including DBOS checkpoints for UPI.
+
+name: Spring tests
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+    paths:
+      - apps/bank/**
+      - apps/upi/**
+      - libs/common/**
+      - .github/workflows/spring-tests.yml
+
+jobs:
+  test:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-java@v6
+        with:
+          distribution: temurin
+          java-version: 25
+          cache: gradle
+
+      - name: Test
+        env:
+          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/postgres
+          SPRING_DATASOURCE_USERNAME: postgres
+          SPRING_DATASOURCE_PASSWORD: postgres
+        run: |
+          (cd libs/common && ./gradlew test --no-parallel --max-workers=1)
+          (cd apps/bank && ./gradlew test --no-parallel --max-workers=1)
+          (cd apps/upi && ./gradlew test --no-parallel --max-workers=1)
