@@ -92,6 +92,7 @@ Failures use the same envelope with `success: false` and an `error` object. Send
 ## Tests
 
 ```bash
-cd apps/upi && ./gradlew test
+cd libs/common && ./gradlew test
 cd apps/bank && ./gradlew test
+cd apps/upi && ./gradlew test
 ```

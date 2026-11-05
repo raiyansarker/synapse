@@ -1,4 +1,4 @@
-# Runs the bank and UPI test suites. They are separate Gradle builds.
+# Runs the shared library, then the bank, then UPI. One suite at a time.
 # The context tests need PostgreSQL, including DBOS checkpoints for UPI.
 
 name: Spring tests
@@ -41,18 +41,12 @@ jobs:
           java-version: 25
           cache: gradle
 
-      - name: Test bank
-        working-directory: apps/bank
+      - name: Test
         env:
           SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/postgres
           SPRING_DATASOURCE_USERNAME: postgres
           SPRING_DATASOURCE_PASSWORD: postgres
-        run: ./gradlew test
-
-      - name: Test UPI
-        working-directory: apps/upi
-        env:
-          SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/postgres
-          SPRING_DATASOURCE_USERNAME: postgres
-          SPRING_DATASOURCE_PASSWORD: postgres
-        run: ./gradlew test
+        run: |
+          (cd libs/common && ./gradlew test --no-parallel --max-workers=1)
+          (cd apps/bank && ./gradlew test --no-parallel --max-workers=1)
+          (cd apps/upi && ./gradlew test --no-parallel --max-workers=1)
