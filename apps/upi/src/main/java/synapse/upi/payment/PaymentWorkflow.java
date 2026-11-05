@@ -6,7 +6,6 @@ import dev.dbos.transact.workflow.Step;
 import dev.dbos.transact.workflow.Workflow;
 import java.math.BigDecimal;
 import java.time.Duration;
-import java.util.Map;
 import java.util.Optional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
@@ -35,19 +34,10 @@ public class PaymentWorkflow {
     this.self = self;
   }
 
-  public Payment start(
-      String payerVirtualAddress,
-      String payeeVirtualAddress,
-      BigDecimal amount,
-      Map<String, String> metadata) {
-    Payment payment = Payment.accept(payerVirtualAddress, payeeVirtualAddress, amount, metadata);
+  public Payment start(String payerVa, String payeeVa, BigDecimal amount) {
+    Payment payment = Payment.accept(payerVa, payeeVa, amount);
     dbos.startWorkflow(
-        () -> self.run(
-            payment.atomicId(),
-            payment.payerVirtualAddress(),
-            payment.payeeVirtualAddress(),
-            payment.amount(),
-            payment.metadata()),
+        () -> self.run(payment.atomicId(), payment.payerVa(), payment.payeeVa(), payment.amount()),
         new StartWorkflowOptions(payment.atomicId()));
     return payment;
   }
@@ -61,19 +51,8 @@ public class PaymentWorkflow {
   }
 
   @Workflow
-  public PaymentState run(
-      String atomicId,
-      String payerVirtualAddress,
-      String payeeVirtualAddress,
-      BigDecimal amount,
-      Map<String, String> metadata) {
-    Payment payment = new Payment(
-        atomicId,
-        PaymentState.ACCEPTED,
-        payerVirtualAddress,
-        payeeVirtualAddress,
-        amount,
-        metadata);
+  public PaymentState run(String atomicId, String payerVa, String payeeVa, BigDecimal amount) {
+    Payment payment = new Payment(atomicId, PaymentState.ACCEPTED, payerVa, payeeVa, amount);
     if (!self.resolve(payment)) {
       payment = payment.withState(self.apply(payment, PaymentEvent.VPA_UNRESOLVED));
       self.reportToPayee(payment);

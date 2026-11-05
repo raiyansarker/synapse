@@ -7,7 +7,6 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import java.math.BigDecimal;
-import java.util.Map;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
@@ -29,22 +28,17 @@ class PaymentControllerTest {
 
   @Test
   void publishesAndReturnsTheAtomicIdInTheBody() throws Exception {
-    Payment payment = Payment.accept("mina@city", "raiyan@city", new BigDecimal("10.00"), Map.of("note", "rent"));
-    when(payments.start(
-            eq("mina@city"),
-            eq("raiyan@city"),
-            eq(new BigDecimal("10.00")),
-            eq(Map.of("note", "rent"))))
+    Payment payment = Payment.accept("mina@city", "raiyan@city", new BigDecimal("10.00"));
+    when(payments.start(eq("mina@city"), eq("raiyan@city"), eq(new BigDecimal("10.00"))))
         .thenReturn(payment);
 
     mvc.perform(post("/payments")
             .contentType(MediaType.APPLICATION_JSON)
             .content("""
                 {
-                  "virtualAddress": "mina@city",
+                  "payerVa": "mina@city",
                   "amount": "10.00",
-                  "payeeVirtualAddress": "raiyan@city",
-                  "metadata": { "note": "rent" }
+                  "payeeVa": "raiyan@city"
                 }
                 """))
         .andExpect(status().isOk())
@@ -54,55 +48,36 @@ class PaymentControllerTest {
   }
 
   @Test
-  void publishesWhenMetadataIsOmitted() throws Exception {
-    Payment payment = Payment.accept("mina@city", "raiyan@city", BigDecimal.ONE, null);
-    when(payments.start(eq("mina@city"), eq("raiyan@city"), eq(new BigDecimal("1")), eq(null)))
-        .thenReturn(payment);
-
+  void rejectsAPayerVaWithoutABank() throws Exception {
     mvc.perform(post("/payments")
             .contentType(MediaType.APPLICATION_JSON)
             .content("""
                 {
-                  "virtualAddress": "mina@city",
-                  "amount": 1,
-                  "payeeVirtualAddress": "raiyan@city"
-                }
-                """))
-        .andExpect(status().isOk())
-        .andExpect(jsonPath("$.data.atomicId").value(payment.atomicId()));
-  }
-
-  @Test
-  void rejectsAVirtualAddressWithoutABank() throws Exception {
-    mvc.perform(post("/payments")
-            .contentType(MediaType.APPLICATION_JSON)
-            .content("""
-                {
-                  "virtualAddress": "mina",
+                  "payerVa": "mina",
                   "amount": "10.00",
-                  "payeeVirtualAddress": "raiyan@city"
+                  "payeeVa": "raiyan@city"
                 }
                 """))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.success").value(false))
         .andExpect(jsonPath("$.error.detail").value("Validation failed"))
-        .andExpect(jsonPath("$.error.reasons[0].field").value("virtualAddress"))
+        .andExpect(jsonPath("$.error.reasons[0].field").value("payerVa"))
         .andExpect(jsonPath("$.error.reasons[0].message").value("must look like name@bank"));
   }
 
   @Test
-  void rejectsAMissingPayeeVirtualAddress() throws Exception {
+  void rejectsAMissingPayeeVa() throws Exception {
     mvc.perform(post("/payments")
             .contentType(MediaType.APPLICATION_JSON)
             .content("""
                 {
-                  "virtualAddress": "mina@city",
+                  "payerVa": "mina@city",
                   "amount": "10.00"
                 }
                 """))
         .andExpect(status().isBadRequest())
         .andExpect(jsonPath("$.error.title").value("Bad Request"))
-        .andExpect(jsonPath("$.error.reasons[0].field").value("payeeVirtualAddress"));
+        .andExpect(jsonPath("$.error.reasons[0].field").value("payeeVa"));
   }
 
   @Test
@@ -111,9 +86,9 @@ class PaymentControllerTest {
             .contentType(MediaType.APPLICATION_JSON)
             .content("""
                 {
-                  "virtualAddress": "mina@city",
+                  "payerVa": "mina@city",
                   "amount": "0",
-                  "payeeVirtualAddress": "raiyan@city"
+                  "payeeVa": "raiyan@city"
                 }
                 """))
         .andExpect(status().isBadRequest())

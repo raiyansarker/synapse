@@ -23,17 +23,13 @@ public class PaymentController {
 
   @PostMapping
   public AcceptedPayment publish(@Valid @RequestBody PublishPaymentRequest request) {
-    requireVirtualAddress(request.virtualAddress(), "virtualAddress");
-    requireVirtualAddress(request.payeeVirtualAddress(), "payeeVirtualAddress");
-    Payment payment = payments.start(
-        request.virtualAddress(),
-        request.payeeVirtualAddress(),
-        request.amount(),
-        request.metadata());
+    requireVa(request.payerVa(), "payerVa");
+    requireVa(request.payeeVa(), "payeeVa");
+    Payment payment = payments.start(request.payerVa(), request.payeeVa(), request.amount());
     return new AcceptedPayment(payment.atomicId());
   }
 
-  private static void requireVirtualAddress(String value, String field) {
+  private static void requireVa(String value, String field) {
     int at = value.indexOf('@');
     if (at <= 0 || at != value.lastIndexOf('@') || at == value.length() - 1) {
       throw new BadRequestException(
@@ -43,10 +39,9 @@ public class PaymentController {
   }
 
   public record PublishPaymentRequest(
-      @NotBlank String virtualAddress,
+      @NotBlank String payerVa,
       @NotNull @Positive BigDecimal amount,
-      @NotBlank String payeeVirtualAddress,
-      Map<String, String> metadata) {}
+      @NotBlank String payeeVa) {}
 
   public record AcceptedPayment(String atomicId) {}
 }

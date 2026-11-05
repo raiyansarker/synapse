@@ -11,7 +11,7 @@ Transitions are defined and enforced by [Spring Statemachine](https://docs.sprin
 | `spring-statemachine-core` | The dependency in `build.gradle.kts`. This is the module to keep. |
 | `PaymentStateMachineConfig` | `@EnableStateMachineFactory` configuration. States, end states, and external transitions live here. |
 | `PaymentStateMachine` | Builds one machine from `StateMachineFactory` per call, restores the payment's current state, sends one event, and returns the next state. |
-| `Payment` | The payment the ledger tracks. `atomicId` is the id returned to the payee's bank. `amount` and `metadata` travel with it. |
+| `Payment` | The payment the ledger tracks. `atomicId` is the id returned to the payee's bank. `payerVa`, `payeeVa`, and `amount` travel with it. |
 
 `spring-statemachine-starter` and the JPA, Redis, and Mongo persistence modules are built for Spring Boot 3.5. This service is Spring Boot 4.1, and the Statemachine project has no Boot 4 support. Leave those modules out. When a payment is stored, store it as a normal JPA entity. The state machine is the transition engine, not the database.
 
@@ -130,14 +130,13 @@ The step bodies do not call the banks yet. The directory, the debit, the credit,
 
 ```json
 {
-  "virtualAddress": "mina@city",
+  "payerVa": "mina@city",
   "amount": "10.00",
-  "payeeVirtualAddress": "raiyan@city",
-  "metadata": { "note": "rent" }
+  "payeeVa": "raiyan@city"
 }
 ```
 
-`virtualAddress` is the payer's virtual address, together with `amount`. `payeeVirtualAddress` is how the ledger finds the payee's bank. `metadata` may be omitted. The shared envelope wraps the response, and `data.atomicId` is the id the bank tracks.
+`payerVa` is the virtual address the money leaves. `payeeVa` is how the ledger finds the payee's bank. `amount` is what moves. The shared envelope wraps the response, and `data.atomicId` is the id the bank tracks. Names, a note, and a currency are not on this request: the directory supplies the names, and this network has one currency.
 
 Later replies from a bank will carry that same id in the body. Those routes are not built yet.
 
