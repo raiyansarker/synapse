@@ -80,6 +80,6 @@ From this directory:
 
 `bootRun` reads `.env` and exports each `KEY=VALUE` line into the process. Lines that are empty, comments, or missing `=` are skipped.
 
-The app listens on port 8080. Set `SERVER_PORT` if that port is already taken.
+The app listens on port 8081. Set `SERVER_PORT` to use another port. The demo route is `http://localhost:8081/demo/accounts/{id}`.
 
 Running from an IDE does not load `.env`. Export the same three variables in the run configuration, or start the app with `./gradlew bootRun`.
