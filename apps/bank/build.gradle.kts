@@ -19,6 +19,7 @@ repositories {
 }
 
 dependencies {
+    implementation("synapse:common:0.0.1-SNAPSHOT")
     implementation("org.springframework.boot:spring-boot-starter-data-jpa")
     implementation("org.springframework.boot:spring-boot-starter-webmvc")
     compileOnly("org.projectlombok:lombok")
