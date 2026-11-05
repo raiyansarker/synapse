@@ -1,5 +1,28 @@
 package synapse.upi.payment;
 
+import static synapse.upi.payment.PaymentEvent.CREDIT_APPROVED;
+import static synapse.upi.payment.PaymentEvent.CREDIT_REJECTED;
+import static synapse.upi.payment.PaymentEvent.CREDIT_REQUESTED;
+import static synapse.upi.payment.PaymentEvent.DEBIT_APPROVED;
+import static synapse.upi.payment.PaymentEvent.DEBIT_DECLINED;
+import static synapse.upi.payment.PaymentEvent.PAYER_ACKNOWLEDGED;
+import static synapse.upi.payment.PaymentEvent.PAYER_ACK_FAILED;
+import static synapse.upi.payment.PaymentEvent.REVERSAL_APPROVED;
+import static synapse.upi.payment.PaymentEvent.REVERSAL_REJECTED;
+import static synapse.upi.payment.PaymentEvent.VPA_RESOLVED;
+import static synapse.upi.payment.PaymentEvent.VPA_UNRESOLVED;
+import static synapse.upi.payment.PaymentState.ACCEPTED;
+import static synapse.upi.payment.PaymentState.ACKNOWLEDGING;
+import static synapse.upi.payment.PaymentState.AUTHORIZATION_PENDING;
+import static synapse.upi.payment.PaymentState.AUTHORIZED;
+import static synapse.upi.payment.PaymentState.COMPLETED;
+import static synapse.upi.payment.PaymentState.CREDIT_PENDING;
+import static synapse.upi.payment.PaymentState.DECLINED;
+import static synapse.upi.payment.PaymentState.RESOLUTION_FAILED;
+import static synapse.upi.payment.PaymentState.REVERSAL_FAILED;
+import static synapse.upi.payment.PaymentState.REVERSAL_PENDING;
+import static synapse.upi.payment.PaymentState.REVERSED;
+
 import java.util.EnumSet;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.statemachine.config.EnableStateMachineFactory;
@@ -9,8 +32,8 @@ import org.springframework.statemachine.config.builders.StateMachineStateConfigu
 import org.springframework.statemachine.config.builders.StateMachineTransitionConfigurer;
 
 /**
- * Spring Statemachine definition of a switch payment. Each payment gets its own machine from the
- * factory. See docs/payment-state-machine.md.
+ * Allowed payment transitions. Each line is {@code from}, {@code event}, {@code to}.
+ * See docs/payment-state-machine.md.
  */
 @Configuration
 @EnableStateMachineFactory(contextEvents = false)
@@ -26,74 +49,66 @@ public class PaymentStateMachineConfig
   @Override
   public void configure(StateMachineStateConfigurer<PaymentState, PaymentEvent> states)
       throws Exception {
-    states
-        .withStates()
-        .initial(PaymentState.ACCEPTED)
-        .end(PaymentState.COMPLETED)
-        .end(PaymentState.RESOLUTION_FAILED)
-        .end(PaymentState.DECLINED)
-        .end(PaymentState.REVERSED)
-        .end(PaymentState.REVERSAL_FAILED)
-        .states(EnumSet.allOf(PaymentState.class));
+    var all = states.withStates().initial(ACCEPTED).states(EnumSet.allOf(PaymentState.class));
+    for (PaymentState state : PaymentState.values()) {
+      if (state.terminal()) {
+        all.end(state);
+      }
+    }
   }
 
   @Override
   public void configure(StateMachineTransitionConfigurer<PaymentState, PaymentEvent> transitions)
       throws Exception {
-    transitions
-        .withExternal()
-        .source(PaymentState.ACCEPTED)
-        .target(PaymentState.AUTHORIZATION_PENDING)
-        .event(PaymentEvent.VPA_RESOLVED)
-        .and()
-        .withExternal()
-        .source(PaymentState.ACCEPTED)
-        .target(PaymentState.RESOLUTION_FAILED)
-        .event(PaymentEvent.VPA_UNRESOLVED)
-        .and()
-        .withExternal()
-        .source(PaymentState.AUTHORIZATION_PENDING)
-        .target(PaymentState.AUTHORIZED)
-        .event(PaymentEvent.DEBIT_APPROVED)
-        .and()
-        .withExternal()
-        .source(PaymentState.AUTHORIZATION_PENDING)
-        .target(PaymentState.DECLINED)
-        .event(PaymentEvent.DEBIT_DECLINED)
-        .and()
-        .withExternal()
-        .source(PaymentState.AUTHORIZED)
-        .target(PaymentState.CREDIT_PENDING)
-        .event(PaymentEvent.CREDIT_REQUESTED)
-        .and()
-        .withExternal()
-        .source(PaymentState.CREDIT_PENDING)
-        .target(PaymentState.ACKNOWLEDGING)
-        .event(PaymentEvent.CREDIT_APPROVED)
-        .and()
-        .withExternal()
-        .source(PaymentState.CREDIT_PENDING)
-        .target(PaymentState.REVERSAL_PENDING)
-        .event(PaymentEvent.CREDIT_REJECTED)
-        .and()
-        .withExternal()
-        .source(PaymentState.ACKNOWLEDGING)
-        .target(PaymentState.COMPLETED)
-        .event(PaymentEvent.PAYER_ACKNOWLEDGED)
-        .and()
-        .withExternal()
-        .source(PaymentState.ACKNOWLEDGING)
-        .target(PaymentState.REVERSAL_PENDING)
-        .event(PaymentEvent.PAYER_ACK_FAILED)
-        .and()
-        .withExternal()
-        .source(PaymentState.REVERSAL_PENDING)
-        .target(PaymentState.REVERSED)
-        .event(PaymentEvent.REVERSAL_APPROVED)
-        .and()
-        .withExternal()
-        .source(PaymentState.REVERSAL_PENDING)
-        .target(PaymentState.REVERSAL_FAILED)
-        .event(PaymentEvent.REVERSAL_REJECTED);
+    resolution(transitions);
+    debit(transitions);
+    credit(transitions);
+    acknowledgement(transitions);
+    reversal(transitions);
+  }
+
+  /** The payee's request either finds the payer's bank or ends. */
+  private void resolution(StateMachineTransitionConfigurer<PaymentState, PaymentEvent> transitions)
+      throws Exception {
+    allow(transitions, ACCEPTED, VPA_RESOLVED, AUTHORIZATION_PENDING);
+    allow(transitions, ACCEPTED, VPA_UNRESOLVED, RESOLUTION_FAILED);
+  }
+
+  /** The payer's bank verifies the payment and either debits or refuses. */
+  private void debit(StateMachineTransitionConfigurer<PaymentState, PaymentEvent> transitions)
+      throws Exception {
+    allow(transitions, AUTHORIZATION_PENDING, DEBIT_APPROVED, AUTHORIZED);
+    allow(transitions, AUTHORIZATION_PENDING, DEBIT_DECLINED, DECLINED);
+  }
+
+  /** After the debit, the payee's bank is asked to credit. */
+  private void credit(StateMachineTransitionConfigurer<PaymentState, PaymentEvent> transitions)
+      throws Exception {
+    allow(transitions, AUTHORIZED, CREDIT_REQUESTED, CREDIT_PENDING);
+    allow(transitions, CREDIT_PENDING, CREDIT_APPROVED, ACKNOWLEDGING);
+    allow(transitions, CREDIT_PENDING, CREDIT_REJECTED, REVERSAL_PENDING);
+  }
+
+  /** The credit succeeded. The payer's bank is told, or the acknowledgement fails. */
+  private void acknowledgement(StateMachineTransitionConfigurer<PaymentState, PaymentEvent> transitions)
+      throws Exception {
+    allow(transitions, ACKNOWLEDGING, PAYER_ACKNOWLEDGED, COMPLETED);
+    allow(transitions, ACKNOWLEDGING, PAYER_ACK_FAILED, REVERSAL_PENDING);
+  }
+
+  /** The debit must be undone, whether the credit was rejected or the acknowledgement failed. */
+  private void reversal(StateMachineTransitionConfigurer<PaymentState, PaymentEvent> transitions)
+      throws Exception {
+    allow(transitions, REVERSAL_PENDING, REVERSAL_APPROVED, REVERSED);
+    allow(transitions, REVERSAL_PENDING, REVERSAL_REJECTED, REVERSAL_FAILED);
+  }
+
+  private void allow(
+      StateMachineTransitionConfigurer<PaymentState, PaymentEvent> transitions,
+      PaymentState from,
+      PaymentEvent event,
+      PaymentState to)
+      throws Exception {
+    transitions.withExternal().source(from).event(event).target(to);
   }
 }
