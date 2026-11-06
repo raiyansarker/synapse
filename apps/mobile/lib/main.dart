@@ -18,11 +18,25 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 // =============================================================================
-// CONSTANTS
+// CONSTANTS — Bangladesh-inspired palette
 // =============================================================================
 
-const Color kGreen = Color(0xFF006A4E);
-const Color kRed = Color(0xFFF42A41);
+// Bangladesh flag colors
+const Color kGreen = Color(0xFF006A4E);        // official flag green
+const Color kGreenDeep = Color(0xFF004B37);    // darker depth
+const Color kGreenBright = Color(0xFF00A677);  // vivid accent
+const Color kGreenMint = Color(0xFFE8F4EC);    // soft mint
+const Color kRed = Color(0xFFF42A41);          // official flag red
+const Color kRedBright = Color(0xFFFF5468);    // vivid accent
+const Color kRedSoft = Color(0xFFFFE5E8);      // soft tint
+
+// Neutrals
+const Color kInk = Color(0xFF0A1811);          // deep green-black ink
+const Color kInkSoft = Color(0xFF13221A);      // softer ink
+const Color kCream = Color(0xFFFBF9F4);        // warm off-white
+const Color kFog = Color(0xFFF0F5F2);          // cool light grey
+const Color kSlate = Color(0xFF4A5C52);        // mid neutral
+const Color kSlateSoft = Color(0xFF8CA096);    // muted neutral
 const Color kWhite = Colors.white;
 const Color kBlack = Color(0xFF1A1A1A);
 
@@ -32,19 +46,10 @@ const String kDefaultAvatar =
 const String _kUserPasswordKey = 'user_password';
 const String _kPaymentCode = '4015 5587 9985 3279';
 
-// Display strings (with BDT symbol) – used in Text widgets.
-const String _kLoanLimitBasicText = '৳1,000';
-const String _kLoanLimitProText = '৳5,000';
-
-// Numeric values – used in limit calculations.
-const double _kLoanLimitBasic = 1000.0;
-const double _kLoanLimitPro = 5000.0;
-const double _kMonthlySavings = 100.0;
-const double _kMonthlySavingsMissed = 210.0;
 const double _kProPrice = 500.0;
 
 // =============================================================================
-// APP STATE (ValueNotifiers = lightweight reactive store)
+// APP STATE
 // =============================================================================
 
 // BACKEND: Replace each notifier with a stream from your state manager.
@@ -57,17 +62,8 @@ final ValueNotifier<UserState> userNotifier =
 final ValueNotifier<List<Tx>> transactionsNotifier = ValueNotifier([]);
 final ValueNotifier<double> balanceNotifier = ValueNotifier(0.0);
 
-final ValueNotifier<double> loanNotifier = ValueNotifier(0.0);
-final ValueNotifier<DateTime?> loanDueDateNotifier = ValueNotifier(null);
-
 final ValueNotifier<bool> isProNotifier = ValueNotifier(false);
 final ValueNotifier<List<String>> purchasedSubsNotifier = ValueNotifier([]);
-
-final ValueNotifier<double> savingsBalanceNotifier = ValueNotifier(0.0);
-final ValueNotifier<bool> savingsEnabledNotifier = ValueNotifier(false);
-final ValueNotifier<DateTime?> savingsStartDateNotifier = ValueNotifier(null);
-final ValueNotifier<DateTime?> lastSavingsCutNotifier = ValueNotifier(null);
-final ValueNotifier<bool> missedSavingsNotifier = ValueNotifier(false);
 
 final LocalAuthentication _localAuth = LocalAuthentication();
 
@@ -75,7 +71,6 @@ final LocalAuthentication _localAuth = LocalAuthentication();
 // MODELS
 // =============================================================================
 
-/// Snapshot of the signed-in user. Mirrors `GET /api/v1/me` response.
 class UserState {
   final String name;
   final String email;
@@ -103,7 +98,6 @@ class UserState {
       );
 }
 
-/// Transaction record. Backend should populate `id` with UUID.
 class Tx {
   final String id;
   final String title;
@@ -124,7 +118,6 @@ class Tx {
   });
 }
 
-/// Third-party subscription product. `price` is monthly BDT.
 class SubModel {
   final String name;
   final IconData icon;
@@ -141,7 +134,6 @@ class SubModel {
   );
 }
 
-/// Rotating promotional card. Backend can serve via `GET /api/v1/ads`.
 class AdItem {
   final String title;
   final String subtitle;
@@ -160,48 +152,11 @@ class AdItem {
 // STATIC DATA
 // =============================================================================
 
-// BACKEND: Serve from `GET /api/v1/subscriptions` catalog.
+// Only Synapse Pro is a real in-app subscription.
 final List<SubModel> availableSubs = [
   const SubModel('Synapse Pro', Icons.stars_outlined, 500.0,
       'Synapse Account Email', [
     '5% Cashback on all bills',
-    'Higher loan limit (৳5,000)',
-    'Priority customer support',
-    'Exclusive partner discounts',
-  ]),
-  const SubModel('Netflix', Icons.movie_outlined, 650.0,
-      'Netflix Account Email', [
-    'Unlimited movies and TV shows',
-    'Ad-free streaming',
-    'Watch on any device',
-    'Download and watch offline',
-  ]),
-  const SubModel('Spotify', Icons.music_note_outlined, 199.0,
-      'Spotify Username', [
-    'Listen to music ad-free',
-    'Play any song, any time',
-    'Offline mode',
-    'High-quality audio',
-  ]),
-  const SubModel('Claude Pro', Icons.smart_toy_outlined, 1600.0,
-      'Claude Account Email', [
-    '5x more usage than free plan',
-    'Access to latest models',
-    'Priority access during high traffic',
-    'Early access to new features',
-  ]),
-  const SubModel('Google One', Icons.cloud_outlined, 150.0, 'Google Email', [
-    '100 GB of cloud storage',
-    'Share with up to 5 family members',
-    'Extra member benefits',
-    '24/7 expert support',
-  ]),
-  const SubModel('Crunchyroll', Icons.play_circle_outline, 400.0,
-      'Crunchyroll Email', [
-    'Ad-free anime streaming',
-    'New episodes one hour after Japan',
-    'Access to manga library',
-    'Offline viewing',
   ]),
 ];
 
@@ -209,7 +164,6 @@ final List<SubModel> availableSubs = [
 // UTILITIES
 // =============================================================================
 
-/// Format `1234.56` → `৳1,234.56` (BDT with thousands separator).
 String formatMoney(double v) {
   final abs = v.abs().toStringAsFixed(2);
   final parts = abs.split('.');
@@ -229,8 +183,6 @@ ImageProvider _avatarProvider(UserState u) => u.avatarPath != null
     ? FileImage(File(u.avatarPath!))
     : const NetworkImage(kDefaultAvatar) as ImageProvider;
 
-/// Verify biometrics. Returns `true` if unavailable (fail-open for dev).
-// BACKEND: Consider switching to fail-closed once production is ready.
 Future<bool> _authenticateBiometrics() async {
   try {
     final withBio = await _localAuth.canCheckBiometrics;
@@ -248,8 +200,6 @@ Future<bool> _authenticateBiometrics() async {
   }
 }
 
-/// Fallback password prompt when biometrics are unavailable.
-// BACKEND: Replace with server-side challenge endpoint.
 Future<bool> _showPasswordDialog(BuildContext context) async {
   final prefs = await SharedPreferences.getInstance();
   final storedPassword = prefs.getString(_kUserPasswordKey) ?? 'password';
@@ -293,11 +243,9 @@ Future<bool> _showPasswordDialog(BuildContext context) async {
 }
 
 // =============================================================================
-// BACKEND-ADJACENT BUSINESS LOGIC
+// BUSINESS LOGIC
 // =============================================================================
 
-/// Append a transaction and reconcile balance.
-// BACKEND: Mirror locally for optimistic UI, then POST to `/api/v1/transactions`.
 void _addTransaction(Tx tx) {
   transactionsNotifier.value = [tx, ...transactionsNotifier.value];
   if (tx.isIncome) {
@@ -307,55 +255,153 @@ void _addTransaction(Tx tx) {
   }
 }
 
-/// Auto-deduct overdue loans on app start.
-// BACKEND: Prefer a scheduled job server-side; this is a client catch-up.
-void _checkLoanAutoDeduction() {
-  final dueDate = loanDueDateNotifier.value;
-  final loanAmt = loanNotifier.value;
-  if (loanAmt > 0 && dueDate != null && DateTime.now().isAfter(dueDate)) {
-    _addTransaction(Tx(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      title: 'Auto Loan Deduction',
-      subtitle: 'Loan Repayment',
-      amount: -loanAmt,
-      time: 'Just now',
-      icon: Icons.warning_amber_rounded,
-      isIncome: false,
-    ));
-    loanNotifier.value = 0;
-    loanDueDateNotifier.value = null;
+// =============================================================================
+// FLOWING BACKGROUND
+// =============================================================================
+
+/// Animated mesh-gradient background. Slow, drifting radial blobs in
+/// Bangladesh green + red. Three independent durations (14s / 22s / 30s)
+/// so the composition never loops identically twice.
+class FlowingBackground extends StatefulWidget {
+  final bool isDark;
+  const FlowingBackground({super.key, required this.isDark});
+
+  @override
+  State<FlowingBackground> createState() => _FlowingBackgroundState();
+}
+
+class _FlowingBackgroundState extends State<FlowingBackground>
+    with TickerProviderStateMixin {
+  late final AnimationController _c1;
+  late final AnimationController _c2;
+  late final AnimationController _c3;
+
+  @override
+  void initState() {
+    super.initState();
+    _c1 = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 14),
+    )..repeat(reverse: true);
+    _c2 = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 22),
+    )..repeat(reverse: true);
+    _c3 = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 30),
+    )..repeat(reverse: true);
+  }
+
+  @override
+  void dispose() {
+    _c1.dispose();
+    _c2.dispose();
+    _c3.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: Listenable.merge([_c1, _c2, _c3]),
+      builder: (context, _) {
+        final t1 = Curves.easeInOut.transform(_c1.value);
+        final t2 = Curves.easeInOut.transform(_c2.value);
+        final t3 = Curves.easeInOut.transform(_c3.value);
+        final isDark = widget.isDark;
+
+        return RepaintBoundary(
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              // Base gradient — its axis slowly tilts
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment(-1.0 + 0.6 * t1, -1.0 + 0.3 * t2),
+                    end: Alignment(1.0 - 0.6 * t1, 1.0 - 0.3 * t2),
+                    colors: isDark
+                        ? const [
+                            Color(0xFF030806),
+                            Color(0xFF08140E),
+                            Color(0xFF04100B),
+                          ]
+                        : const [
+                            Color(0xFFF4FAF6),
+                            Color(0xFFEAF4EE),
+                            Color(0xFFFBF9F4),
+                          ],
+                    stops: const [0.0, 0.55, 1.0],
+                  ),
+                ),
+              ),
+              // Green blob — top-left
+              Positioned(
+                top: -180 + 120 * t1,
+                left: -180 + 100 * t1,
+                child: _Blob(
+                  size: 520,
+                  color: kGreen.withValues(alpha: isDark ? 0.35 : 0.14),
+                ),
+              ),
+              // Red blob — bottom-right
+              Positioned(
+                bottom: -220 + 100 * t2,
+                right: -180 + 140 * t2,
+                child: _Blob(
+                  size: 480,
+                  color: kRed.withValues(alpha: isDark ? 0.22 : 0.09),
+                ),
+              ),
+              // Bright green — middle drift
+              Positioned(
+                top: 280 + 100 * t3,
+                right: -160 + 60 * t3,
+                child: _Blob(
+                  size: 340,
+                  color: kGreenBright
+                      .withValues(alpha: isDark ? 0.18 : 0.08),
+                ),
+              ),
+              // Soft mint — bottom-left
+              Positioned(
+                bottom: 100 + 80 * t1,
+                left: -120 + 60 * t3,
+                child: _Blob(
+                  size: 380,
+                  color: (isDark ? kGreen : kGreenMint)
+                      .withValues(alpha: isDark ? 0.14 : 0.55),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 }
 
-/// Apply monthly savings auto-cut on app start if due.
-// BACKEND: Same – better handled by cron on the server.
-void _checkSavingsAutoCut() {
-  if (!savingsEnabledNotifier.value) return;
-  final lastCut = lastSavingsCutNotifier.value;
-  if (lastCut == null) return;
+class _Blob extends StatelessWidget {
+  final double size;
+  final Color color;
+  const _Blob({required this.size, required this.color});
 
-  final daysSince = DateTime.now().difference(lastCut).inDays;
-  if (daysSince < 30) return;
-
-  final amtToCut =
-      missedSavingsNotifier.value ? _kMonthlySavingsMissed : _kMonthlySavings;
-
-  if (balanceNotifier.value >= amtToCut) {
-    _addTransaction(Tx(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      title: 'Savings Auto-Save',
-      subtitle: 'Monthly Deposit',
-      amount: -amtToCut,
-      time: 'Just now',
-      icon: Icons.savings_outlined,
-      isIncome: false,
-    ));
-    savingsBalanceNotifier.value += amtToCut;
-    missedSavingsNotifier.value = false;
-  } else {
-    missedSavingsNotifier.value = true;
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: RadialGradient(
+            colors: [color, color.withValues(alpha: 0)],
+          ),
+        ),
+      ),
+    );
   }
-  lastSavingsCutNotifier.value = DateTime.now();
 }
 
 // =============================================================================
@@ -365,18 +411,14 @@ void _checkSavingsAutoCut() {
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Restore theme preference.
   final prefs = await SharedPreferences.getInstance();
   darkModeNotifier.value = prefs.getBool('dark_mode') ?? false;
 
-  // Persist theme changes.
   darkModeNotifier.addListener(() async {
     final p = await SharedPreferences.getInstance();
     await p.setBool('dark_mode', darkModeNotifier.value);
   });
 
-  // Persist user profile changes.
-  // BACKEND: Replace with `PATCH /api/v1/me` call.
   userNotifier.addListener(() async {
     final p = await SharedPreferences.getInstance();
     final u = userNotifier.value;
@@ -396,27 +438,22 @@ void main() async {
 class MainApp extends StatelessWidget {
   const MainApp({super.key});
 
-  // Theme instances built once so no allocation per rebuild.
   static final ThemeData _lightTheme = _buildTheme(isDark: false);
   static final ThemeData _darkTheme = _buildTheme(isDark: true);
   static final ThemeData _baseTheme = ThemeData(useMaterial3: true);
 
-  static const Color _lightOnSurface = Color(0xFF0A140D);
-  static const Color _lightOnSurfaceVariant = Color(0xFF2B3A32);
-  static const Color _darkOnSurface = Color(0xFFFFFFFF);
-  static const Color _darkOnSurfaceVariant = Color(0xFFD6E2DA);
-
   static ThemeData _buildTheme({required bool isDark}) {
     final scheme = ColorScheme.fromSeed(
       seedColor: kGreen,
-      primary: isDark ? const Color(0xFF1B8462) : kGreen,
-      secondary: isDark ? const Color(0xFFF85B6A) : kRed,
+      primary: isDark ? kGreenBright : kGreen,
+      secondary: isDark ? kRedBright : kRed,
       brightness: isDark ? Brightness.dark : Brightness.light,
     ).copyWith(
-      surface: isDark ? const Color(0xFF0C1A13) : const Color(0xFFDDEEDD),
-      onSurface: isDark ? _darkOnSurface : _lightOnSurface,
-      onSurfaceVariant:
-          isDark ? _darkOnSurfaceVariant : _lightOnSurfaceVariant,
+      surface: isDark ? kInkSoft : kCream,
+      onSurface: isDark ? kWhite : kInk,
+      onSurfaceVariant: isDark ? kSlateSoft : kSlate,
+      surfaceContainerHighest:
+          isDark ? const Color(0xFF1A2B22) : const Color(0xFFE8F0EA),
     );
 
     return ThemeData(
@@ -426,80 +463,117 @@ class MainApp extends StatelessWidget {
       canvasColor: Colors.transparent,
       colorScheme: scheme,
       splashFactory: NoSplash.splashFactory,
+
       appBarTheme: AppBarTheme(
         backgroundColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         scrolledUnderElevation: 0,
-        foregroundColor: isDark ? _darkOnSurface : _lightOnSurface,
+        foregroundColor: isDark ? kWhite : kInk,
         titleTextStyle: TextStyle(
-          color: isDark ? _darkOnSurface : _lightOnSurface,
-          fontSize: 20,
-          fontWeight: FontWeight.bold,
+          color: isDark ? kWhite : kInk,
+          fontSize: 19,
+          fontWeight: FontWeight.w700,
+          letterSpacing: -0.3,
         ),
-        iconTheme: IconThemeData(
-          color: isDark ? _darkOnSurface : _lightOnSurface,
-        ),
+        iconTheme: IconThemeData(color: isDark ? kWhite : kInk),
       ),
+
       dialogTheme: DialogThemeData(
-        backgroundColor:
-            isDark ? const Color(0xFF14261C) : const Color(0xFFF2FAF3),
+        backgroundColor: isDark ? kInkSoft : kWhite,
         surfaceTintColor: Colors.transparent,
         shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.all(Radius.circular(20)),
+          borderRadius: BorderRadius.all(Radius.circular(24)),
         ),
         titleTextStyle: TextStyle(
-          color: isDark ? _darkOnSurface : _lightOnSurface,
-          fontSize: 20,
-          fontWeight: FontWeight.bold,
+          color: isDark ? kWhite : kInk,
+          fontSize: 19,
+          fontWeight: FontWeight.w700,
         ),
         contentTextStyle: TextStyle(
-          color:
-              isDark ? _darkOnSurfaceVariant : _lightOnSurfaceVariant,
+          color: isDark ? kSlateSoft : kSlate,
           fontSize: 15,
+          height: 1.4,
         ),
       ),
+
       bottomSheetTheme: const BottomSheetThemeData(
         backgroundColor: Colors.transparent,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         modalBackgroundColor: Colors.transparent,
       ),
+
       snackBarTheme: SnackBarThemeData(
-        backgroundColor:
-            isDark ? const Color(0xFFE8F0EA) : const Color(0xFF1A1A1A),
+        backgroundColor: isDark ? kCream : kInk,
         contentTextStyle: TextStyle(
-          color: isDark ? Colors.black : Colors.white,
+          color: isDark ? kInk : kWhite,
           fontSize: 14,
+          fontWeight: FontWeight.w500,
         ),
         behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+        ),
       ),
+
       listTileTheme: ListTileThemeData(
-        textColor: isDark ? _darkOnSurface : _lightOnSurface,
-        iconColor:
-            isDark ? _darkOnSurfaceVariant : _lightOnSurfaceVariant,
+        textColor: isDark ? kWhite : kInk,
+        iconColor: isDark ? kSlateSoft : kSlate,
       ),
+
       dividerTheme:
           const DividerThemeData(color: Colors.transparent, thickness: 0),
+
+      elevatedButtonTheme: ElevatedButtonThemeData(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: isDark ? kGreenBright : kGreen,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(vertical: 18),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          textStyle: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.2,
+          ),
+        ),
+      ),
+
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: isDark ? kGreenBright : kGreen,
+          textStyle: const TextStyle(fontWeight: FontWeight.w600),
+        ),
+      ),
+
       textTheme: TextTheme(
         bodyLarge: TextStyle(
-            color: isDark ? _darkOnSurface : _lightOnSurface),
+          color: isDark ? kWhite : kInk,
+          height: 1.4,
+        ),
         bodyMedium: TextStyle(
-            color: isDark ? _darkOnSurface : _lightOnSurface),
+          color: isDark ? kWhite : kInk,
+          height: 1.4,
+        ),
         bodySmall: TextStyle(
-            color:
-                isDark ? _darkOnSurfaceVariant : _lightOnSurfaceVariant),
+          color: isDark ? kSlateSoft : kSlate,
+        ),
         titleLarge: TextStyle(
-          color: isDark ? _darkOnSurface : _lightOnSurface,
-          fontWeight: FontWeight.bold,
+          color: isDark ? kWhite : kInk,
+          fontWeight: FontWeight.w700,
+          letterSpacing: -0.5,
         ),
         titleMedium: TextStyle(
-          color: isDark ? _darkOnSurface : _lightOnSurface,
-          fontWeight: FontWeight.bold,
+          color: isDark ? kWhite : kInk,
+          fontWeight: FontWeight.w700,
+          letterSpacing: -0.3,
         ),
         titleSmall: TextStyle(
-          color: isDark ? _darkOnSurface : _lightOnSurface,
-          fontWeight: FontWeight.bold,
+          color: isDark ? kWhite : kInk,
+          fontWeight: FontWeight.w700,
         ),
       ),
     );
@@ -509,8 +583,6 @@ class MainApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      // Fixed base theme prevents MaterialApp's AnimatedTheme from
-      // flickering when the real theme is swapped below.
       theme: _baseTheme,
       builder: (context, child) {
         return ValueListenableBuilder<bool>(
@@ -523,25 +595,7 @@ class MainApp extends StatelessWidget {
                 child: Stack(
                   fit: StackFit.expand,
                   children: [
-                    RepaintBoundary(
-                      child: DecoratedBox(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                            colors: isDark
-                                ? [
-                                    const Color(0xFF050A07),
-                                    const Color(0xFF010302),
-                                  ]
-                                : [
-                                    const Color(0xFFF2F9F4),
-                                    const Color(0xFFC9E5D1),
-                                  ],
-                          ),
-                        ),
-                      ),
-                    ),
+                    FlowingBackground(isDark: isDark),
                     Material(
                       type: MaterialType.transparency,
                       child: child ?? const SizedBox.shrink(),
@@ -577,8 +631,6 @@ class _AuthWrapperState extends State<AuthWrapper> {
     _checkQuickLogin();
   }
 
-  /// Attempt silent login from cached session.
-  // BACKEND: Exchange stored refresh token for a new access token here.
   Future<void> _checkQuickLogin() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -611,10 +663,6 @@ class _AuthWrapperState extends State<AuthWrapper> {
 
     if (!mounted) return;
     setState(() => _isLoading = false);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _checkLoanAutoDeduction();
-      _checkSavingsAutoCut();
-    });
   }
 
   @override
@@ -652,9 +700,6 @@ class _LoginPageState extends State<LoginPage> {
     super.dispose();
   }
 
-  /// Mock login. Stores password locally for later re-auth.
-  // BACKEND: POST /api/v1/auth/login with { email, password }
-  //   → { token, refresh_token, user }
   Future<void> _login() async {
     final email = _emailController.text.trim();
     final password = _passwordController.text;
@@ -698,8 +743,8 @@ class _LoginPageState extends State<LoginPage> {
                 GlassContainer(
                   width: 90,
                   height: 90,
-                  borderRadius: BorderRadius.circular(24),
-                  blur: 20,
+                  borderRadius: BorderRadius.circular(28),
+                  blur: 24,
                   child: Icon(
                     Icons.account_balance,
                     color: Theme.of(context).colorScheme.primary,
@@ -710,8 +755,9 @@ class _LoginPageState extends State<LoginPage> {
                 const Text(
                   'Welcome Back',
                   style: TextStyle(
-                    fontSize: 26,
-                    fontWeight: FontWeight.bold,
+                    fontSize: 28,
+                    fontWeight: FontWeight.w800,
+                    letterSpacing: -0.6,
                   ),
                 ),
                 const SizedBox(height: 8),
@@ -719,6 +765,7 @@ class _LoginPageState extends State<LoginPage> {
                   'Sign in to continue',
                   style: TextStyle(
                     color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    fontSize: 15,
                   ),
                 ),
                 const SizedBox(height: 40),
@@ -747,7 +794,7 @@ class _LoginPageState extends State<LoginPage> {
                       foregroundColor:
                           Theme.of(context).colorScheme.onPrimary,
                       shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(20),
                       ),
                       elevation: 0,
                     ),
@@ -763,8 +810,8 @@ class _LoginPageState extends State<LoginPage> {
                         : const Text(
                             'Sign In',
                             style: TextStyle(
-                              fontSize: 18,
-                              fontWeight: FontWeight.bold,
+                              fontSize: 17,
+                              fontWeight: FontWeight.w700,
                             ),
                           ),
                   ),
@@ -796,8 +843,8 @@ class _LoginField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return GlassContainer(
-      borderRadius: BorderRadius.circular(16),
-      blur: 15,
+      borderRadius: BorderRadius.circular(20),
+      blur: 20,
       child: Row(
         children: [
           Padding(
@@ -834,7 +881,7 @@ class _LoginField extends StatelessWidget {
 }
 
 // =============================================================================
-// HOME SHELL (FLOATING GLASS NAVIGATION)
+// HOME SHELL
 // =============================================================================
 
 class HomeShell extends StatefulWidget {
@@ -859,14 +906,14 @@ class _HomeShellState extends State<HomeShell> {
   }) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(16),
+      borderRadius: BorderRadius.circular(20),
       child: SizedBox(
         width: 64,
         height: 56,
         child: Center(
           child: Icon(
             icon,
-            size: 28,
+            size: 26,
             color: colorOverride ??
                 (active
                     ? Theme.of(context).colorScheme.primary
@@ -887,11 +934,11 @@ class _HomeShellState extends State<HomeShell> {
         child: GlassContainer(
           height: 68,
           borderRadius: BorderRadius.circular(34),
-          blur: 25,
+          blur: 30,
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.15),
-              blurRadius: 25,
+              color: Colors.black.withValues(alpha: 0.18),
+              blurRadius: 30,
               offset: const Offset(0, 12),
             ),
           ],
@@ -949,13 +996,13 @@ class _HomePageState extends State<HomePage> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               _buildHeader(),
-              const SizedBox(height: 20),
+              const SizedBox(height: 28),
               _buildBalance(),
-              const SizedBox(height: 24),
+              const SizedBox(height: 32),
               _buildActions(),
-              const SizedBox(height: 24),
+              const SizedBox(height: 28),
               const AdCarousel(),
-              const SizedBox(height: 24),
+              const SizedBox(height: 28),
               _buildTransactions(),
             ],
           ),
@@ -974,28 +1021,49 @@ class _HomePageState extends State<HomePage> {
             backgroundImage: _avatarProvider(user),
           ),
           const SizedBox(width: 12),
-          Text(
-            'Hello, ${user.name.isEmpty ? "Bardia" : user.name}!',
-            style: const TextStyle(
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Hello,',
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: Theme.of(context)
+                        .colorScheme
+                        .onSurfaceVariant
+                        .withValues(alpha: 0.8),
+                  ),
+                ),
+                Text(
+                  user.name.isEmpty ? 'Bardia' : user.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -0.3,
+                  ),
+                ),
+              ],
             ),
           ),
-          const Spacer(),
-          IconButton(
-            icon: const Icon(Icons.notifications_none),
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) => const NotificationsPage(),
+          Container(
+            decoration: BoxDecoration(
+              color: Theme.of(context)
+                  .colorScheme
+                  .surfaceContainerHighest
+                  .withValues(alpha: 0.5),
+              shape: BoxShape.circle,
+            ),
+            child: IconButton(
+              icon: const Icon(Icons.notifications_none, size: 22),
+              onPressed: () => Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const NotificationsPage(),
+                ),
               ),
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.settings_outlined),
-            onPressed: () => Navigator.push(
-              context,
-              MaterialPageRoute(builder: (_) => const SettingsPage()),
             ),
           ),
         ],
@@ -1008,25 +1076,37 @@ class _HomePageState extends State<HomePage> {
       child: Column(
         children: [
           Text(
-            'Total Balance',
+            'TOTAL BALANCE',
             style: TextStyle(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
-              fontSize: 16,
+              color: Theme.of(context)
+                  .colorScheme
+                  .onSurfaceVariant
+                  .withValues(alpha: 0.8),
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.6,
             ),
           ),
-          const SizedBox(height: 8),
-          // BACKEND: Subscribe to balance stream.
+          const SizedBox(height: 10),
           ValueListenableBuilder<double>(
             valueListenable: balanceNotifier,
-            builder: (context, balance, _) => Text(
-              formatMoney(balance),
-              style: TextStyle(
-                color: balance < 0
-                    ? Theme.of(context).colorScheme.error
-                    : Theme.of(context).colorScheme.onSurface,
-                fontSize: 42,
-                fontWeight: FontWeight.bold,
-                letterSpacing: -1,
+            builder: (context, balance, _) => TweenAnimationBuilder<double>(
+              // begin:null → TweenAnimationBuilder remembers the previous
+              // value internally and animates from it to the new end.
+              tween: Tween<double>(end: balance),
+              duration: const Duration(milliseconds: 900),
+              curve: Curves.easeOutCubic,
+              builder: (context, animatedValue, _) => Text(
+                formatMoney(animatedValue),
+                style: TextStyle(
+                  color: balance < 0
+                      ? Theme.of(context).colorScheme.error
+                      : Theme.of(context).colorScheme.onSurface,
+                  fontSize: 44,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -1.4,
+                  height: 1.0,
+                ),
               ),
             ),
           ),
@@ -1040,8 +1120,9 @@ class _HomePageState extends State<HomePage> {
       children: [
         Expanded(
           child: _ActionButton(
-            icon: Icons.arrow_outward,
+            icon: Icons.arrow_outward_rounded,
             label: 'Send',
+            accent: kGreen,
             onTap: () => Navigator.push(
               context,
               MaterialPageRoute(
@@ -1050,20 +1131,13 @@ class _HomePageState extends State<HomePage> {
             ),
           ),
         ),
-        const SizedBox(width: 12),
+        const SizedBox(width: 14),
         Expanded(
           child: _ActionButton(
-            icon: Icons.call_received,
+            icon: Icons.south_west_rounded,
             label: 'Receive',
+            accent: kRed,
             onTap: () => _showReceiveModal(context),
-          ),
-        ),
-        const SizedBox(width: 12),
-        Expanded(
-          child: _ActionButton(
-            icon: Icons.more_horiz,
-            label: 'More',
-            onTap: () => _showMoreMenu(context),
           ),
         ),
       ],
@@ -1074,18 +1148,28 @@ class _HomePageState extends State<HomePage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Latest Transactions',
-          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+        Padding(
+          padding: const EdgeInsets.only(left: 4, bottom: 14),
+          child: Text(
+            'RECENT ACTIVITY',
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w700,
+              letterSpacing: 1.6,
+              color: Theme.of(context)
+                  .colorScheme
+                  .onSurfaceVariant
+                  .withValues(alpha: 0.8),
+            ),
+          ),
         ),
-        const SizedBox(height: 12),
-        // BACKEND: Subscribe to `GET /api/v1/transactions?limit=5`.
         ValueListenableBuilder<List<Tx>>(
           valueListenable: transactionsNotifier,
           builder: (context, txs, _) {
             if (txs.isEmpty) {
-              return Padding(
-                padding: const EdgeInsets.all(20),
+              return GlassContainer(
+                borderRadius: BorderRadius.circular(22),
+                padding: const EdgeInsets.symmetric(vertical: 36),
                 child: Center(
                   child: Text(
                     'No recent transactions',
@@ -1105,36 +1189,37 @@ class _HomePageState extends State<HomePage> {
               itemBuilder: (context, i) {
                 final tx = txs[i];
                 return GlassContainer(
-                  borderRadius: BorderRadius.circular(16),
-                  blur: 12,
-                  padding: const EdgeInsets.all(16),
+                  borderRadius: BorderRadius.circular(20),
+                  blur: 18,
+                  padding: const EdgeInsets.all(14),
                   child: Row(
                     children: [
                       Container(
                         padding: const EdgeInsets.all(12),
                         decoration: BoxDecoration(
-                          color: Theme.of(context)
-                              .colorScheme
-                              .primary
-                              .withValues(alpha: 0.25),
+                          color: (tx.isIncome ? kGreen : kRed)
+                              .withValues(alpha: 0.16),
                           shape: BoxShape.circle,
                         ),
                         child: Icon(
                           tx.icon,
                           size: 20,
-                          color: Theme.of(context).colorScheme.primary,
+                          color: tx.isIncome ? kGreen : kRed,
                         ),
                       ),
-                      const SizedBox(width: 16),
+                      const SizedBox(width: 14),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
                               tx.title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                               style: const TextStyle(
-                                fontWeight: FontWeight.bold,
+                                fontWeight: FontWeight.w700,
                                 fontSize: 14,
+                                letterSpacing: -0.2,
                               ),
                             ),
                             const SizedBox(height: 4),
@@ -1143,7 +1228,8 @@ class _HomePageState extends State<HomePage> {
                               style: TextStyle(
                                 color: Theme.of(context)
                                     .colorScheme
-                                    .onSurfaceVariant,
+                                    .onSurfaceVariant
+                                    .withValues(alpha: 0.7),
                                 fontSize: 12,
                               ),
                             ),
@@ -1153,10 +1239,11 @@ class _HomePageState extends State<HomePage> {
                       Text(
                         '${tx.isIncome ? '+' : ''}${formatMoney(tx.amount)}',
                         style: TextStyle(
-                          fontWeight: FontWeight.bold,
+                          fontWeight: FontWeight.w700,
                           fontSize: 14,
+                          letterSpacing: -0.2,
                           color: tx.isIncome
-                              ? Theme.of(context).colorScheme.primary
+                              ? kGreen
                               : Theme.of(context).colorScheme.onSurface,
                         ),
                       ),
@@ -1182,8 +1269,8 @@ class _HomePageState extends State<HomePage> {
             EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
         child: GlassContainer(
           margin: const EdgeInsets.all(16),
-          borderRadius: BorderRadius.circular(30),
-          blur: 30,
+          borderRadius: BorderRadius.circular(32),
+          blur: 36,
           padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -1204,12 +1291,13 @@ class _HomePageState extends State<HomePage> {
                 'Receive Money',
                 style: TextStyle(
                   fontSize: 22,
-                  fontWeight: FontWeight.bold,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.4,
                 ),
               ),
               const SizedBox(height: 24),
               Container(
-                padding: const EdgeInsets.all(24),
+                padding: const EdgeInsets.all(20),
                 decoration: BoxDecoration(
                   color: Colors.white,
                   borderRadius: BorderRadius.circular(24),
@@ -1221,11 +1309,11 @@ class _HomePageState extends State<HomePage> {
                   backgroundColor: Colors.white,
                   eyeStyle: const QrEyeStyle(
                     eyeShape: QrEyeShape.square,
-                    color: kBlack,
+                    color: kInk,
                   ),
                   dataModuleStyle: const QrDataModuleStyle(
                     dataModuleShape: QrDataModuleShape.square,
-                    color: kBlack,
+                    color: kInk,
                   ),
                 ),
               ),
@@ -1247,14 +1335,14 @@ class _HomePageState extends State<HomePage> {
                   color: Theme.of(context)
                       .colorScheme
                       .primary
-                      .withValues(alpha: 0.20),
+                      .withValues(alpha: 0.16),
                   borderRadius: BorderRadius.circular(16),
                 ),
                 child: const Text(
                   _kPaymentCode,
                   style: TextStyle(
                     fontSize: 18,
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w800,
                     letterSpacing: 2,
                   ),
                 ),
@@ -1272,7 +1360,7 @@ class _HomePageState extends State<HomePage> {
                       const SnackBar(content: Text('Code copied!')),
                     );
                   },
-                  icon: const Icon(Icons.copy),
+                  icon: const Icon(Icons.copy, size: 18),
                   label: const Text('Copy Code'),
                   style: ElevatedButton.styleFrom(
                     backgroundColor:
@@ -1280,7 +1368,7 @@ class _HomePageState extends State<HomePage> {
                     foregroundColor:
                         Theme.of(context).colorScheme.onPrimary,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(20),
                     ),
                   ),
                 ),
@@ -1291,276 +1379,48 @@ class _HomePageState extends State<HomePage> {
       ),
     );
   }
-
-  void _showMoreMenu(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      barrierColor: Colors.black.withValues(alpha: 0.2),
-      builder: (ctx) => GlassContainer(
-        margin: const EdgeInsets.all(16),
-        borderRadius: BorderRadius.circular(24),
-        blur: 30,
-        child: SafeArea(
-          top: false,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(height: 20),
-              const Text(
-                'More Options',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 20),
-              ListTile(
-                leading: const Icon(Icons.savings_outlined),
-                title: const Text('Savings / Auto-Save'),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const SavingsPage(),
-                    ),
-                  );
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.payments_outlined),
-                title: const Text('Loan / Advance'),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (_) => const LoanPage()),
-                  );
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.subscriptions_outlined),
-                title: const Text('Subscriptions'),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (_) => const SubscriptionPage(),
-                    ),
-                  );
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.receipt_long_outlined),
-                title: const Text('Pay Bill'),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _showBillMenu(context);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.school_outlined),
-                title: const Text('Education Payment'),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _showEducationMenu(context);
-                },
-              ),
-              const SizedBox(height: 20),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _showBillMenu(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      barrierColor: Colors.black.withValues(alpha: 0.2),
-      builder: (ctx) => GlassContainer(
-        margin: const EdgeInsets.all(16),
-        borderRadius: BorderRadius.circular(24),
-        blur: 30,
-        child: SafeArea(
-          top: false,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(height: 20),
-              const Text(
-                'Select Biller',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 10),
-              ListTile(
-                title: const Text('DPDC'),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _goToBill(context, 'DPDC', 'Meter Number');
-                },
-              ),
-              ListTile(
-                title: const Text('DESCO'),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _goToBill(context, 'DESCO', 'Meter Number');
-                },
-              ),
-              ListTile(
-                title: const Text('Dot Internet'),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _goToBill(context, 'Dot Internet', 'Customer Number');
-                },
-              ),
-              const SizedBox(height: 20),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _goToBill(BuildContext context, String name, String label) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => BillPaymentPage(billerName: name, idLabel: label),
-      ),
-    );
-  }
-
-  void _showEducationMenu(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      backgroundColor: Colors.transparent,
-      barrierColor: Colors.black.withValues(alpha: 0.2),
-      builder: (ctx) => GlassContainer(
-        margin: const EdgeInsets.all(16),
-        borderRadius: BorderRadius.circular(24),
-        blur: 30,
-        child: SafeArea(
-          top: false,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const SizedBox(height: 20),
-              const Text(
-                'Select Institution',
-                style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 10),
-              ListTile(
-                title: const Text(
-                  'Shamsul Hoque Khan School and College',
-                ),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _goToEducation(
-                    context,
-                    'Shamsul Hoque Khan School',
-                    false,
-                  );
-                },
-              ),
-              ListTile(
-                title: const Text('Dhaka City College'),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _goToEducation(context, 'Dhaka City College', false);
-                },
-              ),
-              ListTile(
-                title: const Text('Dhaka College'),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _goToEducation(context, 'Dhaka College', false);
-                },
-              ),
-              ListTile(
-                title: const Text('Daffodil International University'),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _goToEducation(
-                    context,
-                    'Daffodil International University',
-                    true,
-                  );
-                },
-              ),
-              ListTile(
-                title: const Text('South-East University'),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _goToEducation(
-                    context,
-                    'South-East University',
-                    true,
-                  );
-                },
-              ),
-              const SizedBox(height: 20),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  void _goToEducation(
-    BuildContext context,
-    String name,
-    bool isUniversity,
-  ) {
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => EducationPaymentPage(
-          institutionName: name,
-          isUniversity: isUniversity,
-        ),
-      ),
-    );
-  }
 }
 
 class _ActionButton extends StatelessWidget {
   final IconData icon;
   final String label;
+  final Color accent;
   final VoidCallback onTap;
 
   const _ActionButton({
     required this.icon,
     required this.label,
+    required this.accent,
     required this.onTap,
   });
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return GlassContainer(
-      borderRadius: BorderRadius.circular(16),
-      blur: 15,
+      borderRadius: BorderRadius.circular(22),
+      blur: 20,
       onTap: onTap,
-      padding: const EdgeInsets.symmetric(vertical: 16),
+      padding: const EdgeInsets.symmetric(vertical: 20),
       child: Column(
         children: [
-          Icon(icon, color: Theme.of(context).colorScheme.onSurface),
-          const SizedBox(height: 8),
+          Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              color: accent.withValues(alpha: isDark ? 0.22 : 0.14),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: accent, size: 22),
+          ),
+          const SizedBox(height: 12),
           Text(
             label,
-            style: const TextStyle(
-              fontWeight: FontWeight.bold,
+            style: TextStyle(
+              fontWeight: FontWeight.w700,
               fontSize: 13,
+              letterSpacing: 0.2,
+              color: Theme.of(context).colorScheme.onSurface,
             ),
           ),
         ],
@@ -1581,10 +1441,7 @@ class NotificationsPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(
         elevation: 0,
-        title: const Text(
-          'Notifications',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
+        title: const Text('Notifications'),
         centerTitle: true,
       ),
       body: Center(
@@ -1612,7 +1469,7 @@ class NotificationsPage extends StatelessWidget {
 }
 
 // =============================================================================
-// PROFILE
+// PROFILE & SETTINGS
 // =============================================================================
 
 class ProfilePage extends StatefulWidget {
@@ -1622,8 +1479,6 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
-  /// Pick an image from gallery and store path locally.
-  // BACKEND: Upload to `/api/v1/me/avatar` (multipart) and store returned URL.
   Future<void> _pickAvatar() async {
     final picked =
         await ImagePicker().pickImage(source: ImageSource.gallery);
@@ -1633,8 +1488,6 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  /// Edit display name.
-  // BACKEND: PATCH /api/v1/me { name }
   Future<void> _editName() async {
     final ctrl =
         TextEditingController(text: userNotifier.value.name);
@@ -1667,8 +1520,6 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  /// Trigger password reset email.
-  // BACKEND: POST /api/v1/auth/reset { email }
   void _resetPassword() {
     showDialog(
       context: context,
@@ -1687,15 +1538,71 @@ class _ProfilePageState extends State<ProfilePage> {
     );
   }
 
+  Future<void> _toggleBiometrics(bool value) async {
+    if (value) {
+      final ok = await _authenticateBiometrics();
+      if (ok) {
+        userNotifier.value =
+            userNotifier.value.copyWith(isBiometricEnabled: true);
+      }
+    } else {
+      userNotifier.value =
+          userNotifier.value.copyWith(isBiometricEnabled: false);
+    }
+  }
+
+  void _confirmLogout() {
+    showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Log out?'),
+        content: const Text('Are you sure you want to log out?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              authNotifier.value = false;
+            },
+            child: Text(
+              'Log out',
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.error,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _sectionLabel(BuildContext context, String text) {
+    return Padding(
+      padding: const EdgeInsets.only(left: 4, bottom: 8),
+      child: Text(
+        text.toUpperCase(),
+        style: TextStyle(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          color: Theme.of(context)
+              .colorScheme
+              .onSurfaceVariant
+              .withValues(alpha: 0.8),
+          letterSpacing: 1.4,
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         elevation: 0,
-        title: const Text(
-          'Profile',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
+        title: const Text('Profile & Settings'),
         centerTitle: true,
       ),
       body: ValueListenableBuilder<UserState>(
@@ -1738,7 +1645,8 @@ class _ProfilePageState extends State<ProfilePage> {
                 user.name,
                 style: const TextStyle(
                   fontSize: 22,
-                  fontWeight: FontWeight.bold,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.4,
                 ),
               ),
             ),
@@ -1750,10 +1658,12 @@ class _ProfilePageState extends State<ProfilePage> {
                 ),
               ),
             ),
-            const SizedBox(height: 40),
+            const SizedBox(height: 32),
+
+            _sectionLabel(context, 'Account'),
             GlassContainer(
-              borderRadius: BorderRadius.circular(16),
-              blur: 15,
+              borderRadius: BorderRadius.circular(20),
+              blur: 20,
               padding: const EdgeInsets.symmetric(vertical: 8),
               child: Column(
                 children: [
@@ -1772,92 +1682,12 @@ class _ProfilePageState extends State<ProfilePage> {
                 ],
               ),
             ),
-          ],
-        ),
-      ),
-    );
-  }
-}
+            const SizedBox(height: 24),
 
-// =============================================================================
-// SETTINGS
-// =============================================================================
-
-class SettingsPage extends StatefulWidget {
-  const SettingsPage({super.key});
-  @override
-  State<SettingsPage> createState() => _SettingsPageState();
-}
-
-class _SettingsPageState extends State<SettingsPage> {
-  /// Toggle biometric security (requires device auth).
-  // BACKEND: PATCH /api/v1/me { biometric_enabled: bool }
-  Future<void> _toggleBiometrics(bool value) async {
-    if (value) {
-      final ok = await _authenticateBiometrics();
-      if (ok) {
-        userNotifier.value =
-            userNotifier.value.copyWith(isBiometricEnabled: true);
-      }
-    } else {
-      userNotifier.value =
-          userNotifier.value.copyWith(isBiometricEnabled: false);
-    }
-  }
-
-  /// Clear session and return to login.
-  // BACKEND: POST /api/v1/auth/logout
-  void _confirmLogout() {
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Log out?'),
-        content: const Text('Are you sure you want to log out?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              Navigator.pop(ctx);
-              authNotifier.value = false;
-            },
-            child: Text(
-              'Log out',
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.error,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          'Settings',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        centerTitle: true,
-      ),
-      body: ValueListenableBuilder<UserState>(
-        valueListenable: userNotifier,
-        builder: (context, user, _) => ListView(
-          padding: const EdgeInsets.all(24),
-          children: [
+            _sectionLabel(context, 'Preferences'),
             GlassContainer(
-              borderRadius: BorderRadius.circular(16),
-              blur: 15,
+              borderRadius: BorderRadius.circular(20),
+              blur: 20,
               padding: const EdgeInsets.symmetric(vertical: 8),
               child: Column(
                 children: [
@@ -1887,32 +1717,47 @@ class _SettingsPageState extends State<SettingsPage> {
                         Theme.of(context).colorScheme.primary,
                     onChanged: _toggleBiometrics,
                   ),
-                  ListTile(
-                    leading: const Icon(Icons.help_outline),
-                    title: const Text('Help & Support'),
-                    trailing: const Icon(Icons.chevron_right),
-                    onTap: () => Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => const HelpPage(),
-                      ),
-                    ),
-                  ),
-                  ListTile(
-                    leading: Icon(
-                      Icons.logout,
-                      color: Theme.of(context).colorScheme.error,
-                    ),
-                    title: Text(
-                      'Log out',
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.error,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    onTap: _confirmLogout,
-                  ),
                 ],
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            _sectionLabel(context, 'Support'),
+            GlassContainer(
+              borderRadius: BorderRadius.circular(20),
+              blur: 20,
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: ListTile(
+                leading: const Icon(Icons.help_outline),
+                title: const Text('Help & Support'),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const HelpPage(),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            GlassContainer(
+              borderRadius: BorderRadius.circular(20),
+              blur: 20,
+              padding: const EdgeInsets.symmetric(vertical: 8),
+              child: ListTile(
+                leading: Icon(
+                  Icons.logout,
+                  color: Theme.of(context).colorScheme.error,
+                ),
+                title: Text(
+                  'Log out',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.error,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                onTap: _confirmLogout,
               ),
             ),
           ],
@@ -1955,28 +1800,10 @@ class HelpPage extends StatelessWidget {
           'Tap the Scan icon in the bottom navigation bar to open the camera immediately.',
     ),
     const _HelpTopic(
-      title: 'Savings & Auto-Save',
-      icon: Icons.savings_outlined,
-      content:
-          'Under "More", enable Auto-Save to deduct 100 TK every 30 days. Locked for 1 year.',
-    ),
-    const _HelpTopic(
-      title: 'Loan / Advance',
-      icon: Icons.payments_outlined,
-      content:
-          'Take instant cash advance. Basic limit 1,000 TK, Pro 5,000 TK. Due in 30 days.',
-    ),
-    const _HelpTopic(
       title: 'Subscriptions',
       icon: Icons.subscriptions_outlined,
       content:
-          'Buy Netflix, Spotify, Claude Pro, etc. directly from the app.',
-    ),
-    const _HelpTopic(
-      title: 'Bills & Education',
-      icon: Icons.receipt_long_outlined,
-      content:
-          'Pay electricity (DPDC/DESCO), internet, and education fees by entering your ID.',
+          'Subscribe to Synapse Pro for 5% cashback on all bills.',
     ),
   ];
 
@@ -1989,10 +1816,7 @@ class HelpPage extends StatelessWidget {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
-          'Help & Support',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
+        title: const Text('Help & Support'),
         centerTitle: true,
       ),
       body: ListView(
@@ -2024,8 +1848,8 @@ class _HelpSection extends StatelessWidget {
   Widget build(BuildContext context) {
     return GlassContainer(
       margin: const EdgeInsets.only(bottom: 16),
-      borderRadius: BorderRadius.circular(16),
-      blur: 12,
+      borderRadius: BorderRadius.circular(18),
+      blur: 18,
       child: Theme(
         data: Theme.of(context)
             .copyWith(dividerColor: Colors.transparent),
@@ -2043,7 +1867,7 @@ class _HelpSection extends StatelessWidget {
           ),
           title: Text(
             topic.title,
-            style: const TextStyle(fontWeight: FontWeight.bold),
+            style: const TextStyle(fontWeight: FontWeight.w700),
           ),
           children: [
             Padding(
@@ -2080,7 +1904,6 @@ class _RecipientSelectionPageState
     extends State<RecipientSelectionPage> {
   final _codeController = TextEditingController();
 
-  // BACKEND: GET /api/v1/recipients/recent
   static const List<Map<String, dynamic>> _recentRecipients = [
     {'name': 'Arnold Smith', 'code': 'ARN-552-OLI'},
     {'name': 'Raiyan Sarker', 'code': 'RAI-991-XYZ'},
@@ -2112,10 +1935,7 @@ class _RecipientSelectionPageState
     return Scaffold(
       appBar: AppBar(
         elevation: 0,
-        title: const Text(
-          'Send Money',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
+        title: const Text('Send Money'),
         centerTitle: true,
         actions: [
           IconButton(
@@ -2133,8 +1953,9 @@ class _RecipientSelectionPageState
               const Text(
                 'Send to',
                 style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
+                  fontSize: 26,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.6,
                 ),
               ),
               const SizedBox(height: 8),
@@ -2147,8 +1968,8 @@ class _RecipientSelectionPageState
               ),
               const SizedBox(height: 24),
               GlassContainer(
-                borderRadius: BorderRadius.circular(16),
-                blur: 15,
+                borderRadius: BorderRadius.circular(20),
+                blur: 20,
                 child: TextField(
                   controller: _codeController,
                   style: TextStyle(
@@ -2182,11 +2003,16 @@ class _RecipientSelectionPageState
                 ),
               ),
               const SizedBox(height: 30),
-              const Text(
-                'Recent',
+              Text(
+                'RECENT',
                 style: TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.6,
+                  color: Theme.of(context)
+                      .colorScheme
+                      .onSurfaceVariant
+                      .withValues(alpha: 0.8),
                 ),
               ),
               const SizedBox(height: 16),
@@ -2199,8 +2025,8 @@ class _RecipientSelectionPageState
                 itemBuilder: (context, i) {
                   final r = _recentRecipients[i];
                   return GlassContainer(
-                    borderRadius: BorderRadius.circular(16),
-                    blur: 12,
+                    borderRadius: BorderRadius.circular(18),
+                    blur: 18,
                     padding: const EdgeInsets.all(16),
                     onTap: () => _proceedToAmount(
                       r['code'] as String,
@@ -2222,7 +2048,7 @@ class _RecipientSelectionPageState
                               Text(
                                 r['name'] as String,
                                 style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
+                                  fontWeight: FontWeight.w700,
                                   fontSize: 16,
                                 ),
                               ),
@@ -2299,10 +2125,6 @@ class _AmountPageState extends State<AmountPage> {
     });
   }
 
-  /// Confirm transfer: authorize → debit → navigate.
-  // BACKEND: POST /api/v1/transfers
-  //   { recipient: recipientCode, amount }
-  //   → { transaction_id, new_balance }
   Future<void> _processTransfer() async {
     final amt = double.tryParse(_amount) ?? 0;
 
@@ -2364,10 +2186,7 @@ class _AmountPageState extends State<AmountPage> {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
-          'Send Amount',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
+        title: const Text('Send Amount'),
         centerTitle: true,
       ),
       body: Column(
@@ -2375,8 +2194,8 @@ class _AmountPageState extends State<AmountPage> {
           Padding(
             padding: const EdgeInsets.all(20),
             child: GlassContainer(
-              borderRadius: BorderRadius.circular(16),
-              blur: 15,
+              borderRadius: BorderRadius.circular(20),
+              blur: 20,
               padding: const EdgeInsets.all(16),
               child: Row(
                 children: [
@@ -2403,7 +2222,7 @@ class _AmountPageState extends State<AmountPage> {
                         Text(
                           widget.recipientName,
                           style: const TextStyle(
-                            fontWeight: FontWeight.bold,
+                            fontWeight: FontWeight.w700,
                             fontSize: 16,
                           ),
                         ),
@@ -2427,17 +2246,20 @@ class _AmountPageState extends State<AmountPage> {
           Text(
             '৳$_amount',
             style: const TextStyle(
-              fontSize: 48,
-              fontWeight: FontWeight.bold,
+              fontSize: 52,
+              fontWeight: FontWeight.w800,
+              letterSpacing: -1.6,
+              height: 1.0,
             ),
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           ValueListenableBuilder<double>(
             valueListenable: balanceNotifier,
             builder: (context, balance, _) => Text(
               'Available: ${formatMoney(balance)}',
               style: TextStyle(
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
+                fontSize: 13,
               ),
             ),
           ),
@@ -2467,7 +2289,7 @@ class _AmountPageState extends State<AmountPage> {
                   foregroundColor:
                       Theme.of(context).colorScheme.onPrimary,
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(16),
+                    borderRadius: BorderRadius.circular(20),
                   ),
                 ),
                 child: const Row(
@@ -2478,8 +2300,8 @@ class _AmountPageState extends State<AmountPage> {
                     Text(
                       'Confirm Transfer',
                       style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
+                        fontSize: 17,
+                        fontWeight: FontWeight.w700,
                       ),
                     ),
                   ],
@@ -2514,7 +2336,7 @@ class _AmountPageState extends State<AmountPage> {
                     k,
                     style: TextStyle(
                       fontSize: 28,
-                      fontWeight: FontWeight.w500,
+                      fontWeight: FontWeight.w600,
                       color:
                           Theme.of(context).colorScheme.onSurface,
                     ),
@@ -2522,307 +2344,6 @@ class _AmountPageState extends State<AmountPage> {
           ),
         );
       }).toList(),
-    );
-  }
-}
-
-// =============================================================================
-// SAVINGS
-// =============================================================================
-
-class SavingsPage extends StatefulWidget {
-  const SavingsPage({super.key});
-  @override
-  State<SavingsPage> createState() => _SavingsPageState();
-}
-
-class _SavingsPageState extends State<SavingsPage> {
-  bool _isLoading = false;
-
-  /// Withdraw all savings (only allowed after 1-year lock-in).
-  // BACKEND: POST /api/v1/savings/withdraw → { amount, new_balance }
-  Future<void> _withdraw() async {
-    final startDate = savingsStartDateNotifier.value;
-    if (startDate == null) return;
-
-    if (DateTime.now().difference(startDate).inDays < 365) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        backgroundColor: Theme.of(context).colorScheme.error,
-        content: Text(
-          'You can only withdraw after 1 year.',
-          style: TextStyle(
-            color: Theme.of(context).colorScheme.onError,
-          ),
-        ),
-      ));
-      return;
-    }
-
-    if (savingsBalanceNotifier.value <= 0) return;
-
-    bool authorized = false;
-    if (userNotifier.value.isBiometricEnabled) {
-      authorized = await _authenticateBiometrics();
-      if (!authorized) {
-        authorized = await _showPasswordDialog(context);
-      }
-    } else {
-      authorized = await _showPasswordDialog(context);
-    }
-    if (!authorized) return;
-    if (!mounted) return;
-
-    setState(() => _isLoading = true);
-    await Future.delayed(const Duration(seconds: 2));
-    if (!mounted) return;
-    setState(() => _isLoading = false);
-
-    final amt = savingsBalanceNotifier.value;
-    _addTransaction(Tx(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      title: 'Savings Withdrawn',
-      subtitle: 'To Main Balance',
-      amount: amt,
-      time: 'Just now',
-      icon: Icons.savings_outlined,
-      isIncome: true,
-    ));
-
-    savingsBalanceNotifier.value = 0;
-    savingsEnabledNotifier.value = false;
-    savingsStartDateNotifier.value = null;
-    lastSavingsCutNotifier.value = null;
-    missedSavingsNotifier.value = false;
-
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      backgroundColor: Theme.of(context).colorScheme.primary,
-      content: Text(
-        'Successfully withdrawn ${formatMoney(amt)}!',
-        style: TextStyle(
-          color: Theme.of(context).colorScheme.onPrimary,
-        ),
-      ),
-    ));
-  }
-
-  /// Enable/disable auto-save. Once enabled, locked for 1 year.
-  // BACKEND: POST /api/v1/savings/auto-save { enabled }
-  void _toggleAutoSave(bool val) {
-    if (!val) {
-      final startDate = savingsStartDateNotifier.value;
-      if (startDate != null &&
-          DateTime.now().difference(startDate).inDays < 365) {
-        ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-          backgroundColor: Theme.of(context).colorScheme.error,
-          content: Text(
-            'Auto-save is locked for 1 year. You cannot turn it off.',
-            style: TextStyle(
-              color: Theme.of(context).colorScheme.onError,
-            ),
-          ),
-        ));
-        return;
-      }
-    }
-
-    savingsEnabledNotifier.value = val;
-    if (val) {
-      savingsStartDateNotifier.value = DateTime.now();
-      lastSavingsCutNotifier.value = DateTime.now();
-      missedSavingsNotifier.value = false;
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          'Savings',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        centerTitle: true,
-      ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 20),
-              Center(
-                child: Container(
-                  padding: const EdgeInsets.all(24),
-                  decoration: BoxDecoration(
-                    color: Theme.of(context).colorScheme.primary,
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.savings_outlined,
-                    color: Theme.of(context).colorScheme.onPrimary,
-                    size: 60,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 24),
-              const Center(
-                child: Text(
-                  'Total Savings',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Center(
-                child: ValueListenableBuilder<double>(
-                  valueListenable: savingsBalanceNotifier,
-                  builder: (context, balance, _) => Text(
-                    formatMoney(balance),
-                    style: TextStyle(
-                      fontSize: 36,
-                      fontWeight: FontWeight.bold,
-                      color: Theme.of(context).colorScheme.primary,
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 40),
-              GlassContainer(
-                borderRadius: BorderRadius.circular(16),
-                blur: 15,
-                padding: const EdgeInsets.symmetric(vertical: 8),
-                child: Column(
-                  children: [
-                    ValueListenableBuilder<bool>(
-                      valueListenable: savingsEnabledNotifier,
-                      builder: (context, enabled, _) =>
-                          SwitchListTile(
-                        secondary: Icon(
-                          Icons.autorenew,
-                          color:
-                              Theme.of(context).colorScheme.primary,
-                        ),
-                        title: const Text(
-                          'Auto-Save 100 TK/month',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        subtitle: const Text(
-                          'Automatically cuts 100 TK every 30 days.',
-                        ),
-                        value: enabled,
-                        activeThumbColor:
-                            Theme.of(context).colorScheme.primary,
-                        onChanged: _toggleAutoSave,
-                      ),
-                    ),
-                    ValueListenableBuilder<bool>(
-                      valueListenable: missedSavingsNotifier,
-                      builder: (context, missed, _) {
-                        if (!missed) {
-                          return const SizedBox.shrink();
-                        }
-                        return Padding(
-                          padding: const EdgeInsets.fromLTRB(
-                            16,
-                            0,
-                            16,
-                            12,
-                          ),
-                          child: Text(
-                            'Warning: You missed a payment! Next cut will be 210 TK (100 double + 10 penalty).',
-                            style: TextStyle(
-                              color: Colors.orange.shade800,
-                              fontSize: 13,
-                              fontWeight: FontWeight.bold,
-                            ),
-                          ),
-                        );
-                      },
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
-              _buildWarningBanner(),
-              const SizedBox(height: 40),
-              SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: ElevatedButton(
-                  onPressed: _isLoading ? null : _withdraw,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor:
-                        Theme.of(context).colorScheme.primary,
-                    foregroundColor:
-                        Theme.of(context).colorScheme.onPrimary,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                  child: _isLoading
-                      ? const SizedBox(
-                          height: 24,
-                          width: 24,
-                          child: CircularProgressIndicator(
-                            color: kWhite,
-                            strokeWidth: 2,
-                          ),
-                        )
-                      : const Text(
-                          'Withdraw Savings',
-                          style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildWarningBanner() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.orange.withValues(alpha: 0.20),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: Colors.orange.withValues(alpha: 0.35),
-        ),
-      ),
-      child: Row(
-        children: [
-          const Icon(
-            Icons.warning_amber_rounded,
-            color: Colors.orange,
-            size: 20,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              'Warning: Turning on Auto-Save locks your deposited savings for 1 year. You cannot turn it off or withdraw until then.',
-              style: TextStyle(
-                color: Colors.orange.shade800,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
     );
   }
 }
@@ -2868,40 +2389,19 @@ class _AdCarouselState extends State<AdCarousel> {
     _startAutoScroll();
   }
 
-  /// Build the rotation list from current user state.
-  // BACKEND: Optionally override with server-driven ad list.
   void _generateAds() {
     final ads = <AdItem>[];
 
     if (!isProNotifier.value) {
       ads.add(AdItem(
         title: 'Upgrade to Synapse Pro',
-        subtitle: 'Get 5% cashback and higher loan limits.',
+        subtitle: 'Get 5% cashback on all bills.',
         icon: Icons.stars_outlined,
         onTap: () => Navigator.push(
           context,
           MaterialPageRoute(builder: (_) => const UpgradePage()),
         ),
       ));
-    }
-
-    for (final sub in availableSubs) {
-      if (sub.name != 'Synapse Pro' &&
-          !purchasedSubsNotifier.value.contains(sub.name)) {
-        ads.add(AdItem(
-          title: 'Get ${sub.name}',
-          subtitle:
-              'Subscribe for only ${formatMoney(sub.price)}/month.',
-          icon: sub.icon,
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (_) =>
-                  SubscriptionBenefitsPage(sub: sub),
-            ),
-          ),
-        ));
-      }
     }
 
     ads.add(AdItem(
@@ -2923,8 +2423,7 @@ class _AdCarouselState extends State<AdCarousel> {
     if (_ads.length <= 1) return;
     _timer = Timer.periodic(const Duration(seconds: 4), (_) {
       if (!mounted || !_pageController.hasClients) return;
-      final nextPage =
-          (_currentPage + 1) % _ads.length;
+      final nextPage = (_currentPage + 1) % _ads.length;
       _pageController.animateToPage(
         nextPage,
         duration: const Duration(milliseconds: 400),
@@ -2953,7 +2452,7 @@ class _AdCarouselState extends State<AdCarousel> {
   Widget build(BuildContext context) {
     if (_ads.isEmpty) return const SizedBox.shrink();
     return SizedBox(
-      height: 80,
+      height: 84,
       child: PageView.builder(
         controller: _pageController,
         itemCount: _ads.length,
@@ -2979,17 +2478,17 @@ class _AdCard extends StatelessWidget {
           gradient: LinearGradient(
             colors: [
               Theme.of(context).colorScheme.primary,
-              kBlack,
+              kGreenDeep,
             ],
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
           ),
-          borderRadius: BorderRadius.circular(16),
+          borderRadius: BorderRadius.circular(22),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.15),
-              blurRadius: 10,
-              offset: const Offset(0, 5),
+              color: kGreen.withValues(alpha: 0.3),
+              blurRadius: 18,
+              offset: const Offset(0, 8),
             ),
           ],
         ),
@@ -3003,7 +2502,7 @@ class _AdCard extends StatelessWidget {
               ),
               child: Icon(ad.icon, color: Colors.white, size: 20),
             ),
-            const SizedBox(width: 12),
+            const SizedBox(width: 14),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -3014,7 +2513,8 @@ class _AdCard extends StatelessWidget {
                     style: const TextStyle(
                       color: Colors.white,
                       fontSize: 14,
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: -0.2,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
@@ -3022,8 +2522,8 @@ class _AdCard extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     ad.subtitle,
-                    style: const TextStyle(
-                      color: Colors.white70,
+                    style: TextStyle(
+                      color: Colors.white.withValues(alpha: 0.78),
                       fontSize: 11,
                     ),
                     maxLines: 1,
@@ -3045,464 +2545,6 @@ class _AdCard extends StatelessWidget {
 }
 
 // =============================================================================
-// LOAN / ADVANCE
-// =============================================================================
-
-class LoanPage extends StatefulWidget {
-  const LoanPage({super.key});
-  @override
-  State<LoanPage> createState() => _LoanPageState();
-}
-
-class _LoanPageState extends State<LoanPage> {
-  final _amountController = TextEditingController();
-  bool _isLoading = false;
-
-  @override
-  void dispose() {
-    _amountController.dispose();
-    super.dispose();
-  }
-
-  /// Disburse a new loan.
-  // BACKEND: POST /api/v1/loans { amount }
-  //   → { loan_id, due_date, amount }
-  Future<void> _takeLoan() async {
-    final amt = double.tryParse(_amountController.text) ?? 0;
-    final maxLimit =
-        isProNotifier.value ? _kLoanLimitPro : _kLoanLimitBasic;
-
-    if (amt <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a valid amount')),
-      );
-      return;
-    }
-    if (amt > maxLimit) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        backgroundColor: Theme.of(context).colorScheme.error,
-        content: Text(
-          'Amount exceeds your limit of ${formatMoney(maxLimit)}',
-          style: TextStyle(
-            color: Theme.of(context).colorScheme.onError,
-          ),
-        ),
-      ));
-      return;
-    }
-    if (loanNotifier.value > 0) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-        backgroundColor: Theme.of(context).colorScheme.error,
-        content: Text(
-          'You must clear your previous loan first.',
-          style: TextStyle(
-            color: Theme.of(context).colorScheme.onError,
-          ),
-        ),
-      ));
-      return;
-    }
-
-    bool authorized = false;
-    if (userNotifier.value.isBiometricEnabled) {
-      authorized = await _authenticateBiometrics();
-      if (!authorized) {
-        authorized = await _showPasswordDialog(context);
-      }
-    } else {
-      authorized = await _showPasswordDialog(context);
-    }
-    if (!authorized) return;
-    if (!mounted) return;
-
-    FocusScope.of(context).unfocus();
-    setState(() => _isLoading = true);
-    await Future.delayed(const Duration(seconds: 2));
-    if (!mounted) return;
-    setState(() => _isLoading = false);
-
-    loanNotifier.value = amt;
-    loanDueDateNotifier.value =
-        DateTime.now().add(const Duration(days: 30));
-
-    _addTransaction(Tx(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      title: 'Loan Disbursed',
-      subtitle: 'Advance',
-      amount: amt,
-      time: 'Just now',
-      icon: Icons.payments_outlined,
-      isIncome: true,
-    ));
-
-    _amountController.clear();
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      backgroundColor: Theme.of(context).colorScheme.primary,
-      content: Text(
-        'Loan of ${formatMoney(amt)} disbursed successfully!',
-        style: TextStyle(
-          color: Theme.of(context).colorScheme.onPrimary,
-        ),
-      ),
-    ));
-  }
-
-  /// Repay the outstanding loan in full.
-  // BACKEND: POST /api/v1/loans/repay
-  Future<void> _repayLoan() async {
-    final amt = loanNotifier.value;
-    if (amt <= 0) return;
-
-    bool authorized = false;
-    if (userNotifier.value.isBiometricEnabled) {
-      authorized = await _authenticateBiometrics();
-      if (!authorized) {
-        authorized = await _showPasswordDialog(context);
-      }
-    } else {
-      authorized = await _showPasswordDialog(context);
-    }
-    if (!authorized) return;
-    if (!mounted) return;
-
-    setState(() => _isLoading = true);
-    await Future.delayed(const Duration(seconds: 2));
-    if (!mounted) return;
-    setState(() => _isLoading = false);
-
-    _addTransaction(Tx(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
-      title: 'Loan Repayment',
-      subtitle: 'Cleared',
-      amount: -amt,
-      time: 'Just now',
-      icon: Icons.check_circle_outline,
-      isIncome: false,
-    ));
-
-    loanNotifier.value = 0;
-    loanDueDateNotifier.value = null;
-
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-      backgroundColor: Theme.of(context).colorScheme.primary,
-      content: Text(
-        'Loan fully repaid!',
-        style: TextStyle(
-          color: Theme.of(context).colorScheme.onPrimary,
-        ),
-      ),
-    ));
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.pop(context),
-        ),
-        title: const Text(
-          'Loan / Advance',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
-        centerTitle: true,
-      ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 20),
-              const Icon(Icons.payments_outlined, size: 60),
-              const SizedBox(height: 24),
-              const Text(
-                'Take a Loan',
-                style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Get instant funds. Repay within 30 days.',
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: 30),
-              _buildLimitCard(),
-              const SizedBox(height: 20),
-              ValueListenableBuilder<double>(
-                valueListenable: loanNotifier,
-                builder: (context, activeLoan, _) =>
-                    activeLoan > 0
-                        ? _buildActiveLoan(activeLoan)
-                        : _buildLoanForm(),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildLimitCard() {
-    return GlassContainer(
-      borderRadius: BorderRadius.circular(16),
-      blur: 15,
-      padding: const EdgeInsets.all(20),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: [
-          const Text(
-            'Your Limit',
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          ValueListenableBuilder<bool>(
-            valueListenable: isProNotifier,
-            builder: (context, isPro, _) => Text(
-              isPro ? _kLoanLimitProText : _kLoanLimitBasicText,
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Theme.of(context).colorScheme.primary,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildActiveLoan(double activeLoan) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Container(
-          padding: const EdgeInsets.all(20),
-          decoration: BoxDecoration(
-            color: Colors.orange.withValues(alpha: 0.20),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: Colors.orange.withValues(alpha: 0.35),
-            ),
-          ),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const Text(
-                'Outstanding Loan',
-                style: TextStyle(
-                  color: Colors.orange,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                formatMoney(activeLoan),
-                style: const TextStyle(
-                  fontSize: 32,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 16),
-              ValueListenableBuilder<DateTime?>(
-                valueListenable: loanDueDateNotifier,
-                builder: (context, dueDate, _) => Text(
-                  'Due Date: ${dueDate != null ? formatDate(dueDate) : "N/A"}',
-                  style: TextStyle(
-                    color: Theme.of(context)
-                        .colorScheme
-                        .onSurfaceVariant,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 24),
-        Text(
-          'You must repay your current loan before taking a new one.',
-          style: TextStyle(
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-            fontSize: 12,
-          ),
-        ),
-        const SizedBox(height: 40),
-        SizedBox(
-          width: double.infinity,
-          height: 56,
-          child: ElevatedButton(
-            onPressed: _isLoading ? null : _repayLoan,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.primary,
-              foregroundColor:
-                  Theme.of(context).colorScheme.onPrimary,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-            ),
-            child: _isLoading
-                ? const SizedBox(
-                    height: 24,
-                    width: 24,
-                    child: CircularProgressIndicator(
-                      color: kWhite,
-                      strokeWidth: 2,
-                    ),
-                  )
-                : const Text(
-                    'Repay Loan',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildLoanForm() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text(
-          'Enter Amount (৳)',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-          ),
-        ),
-        const SizedBox(height: 12),
-        GlassContainer(
-          borderRadius: BorderRadius.circular(16),
-          blur: 15,
-          child: Row(
-            children: [
-              const Padding(
-                padding:
-                    EdgeInsets.only(left: 20, right: 12),
-                child: Text(
-                  '৳',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ),
-              Expanded(
-                child: TextField(
-                  controller: _amountController,
-                  keyboardType:
-                      const TextInputType.numberWithOptions(
-                    decimal: true,
-                  ),
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                    color:
-                        Theme.of(context).colorScheme.onSurface,
-                  ),
-                  decoration: InputDecoration(
-                    hintText: '0.00',
-                    hintStyle: TextStyle(
-                      color: Theme.of(context)
-                          .colorScheme
-                          .onSurfaceVariant,
-                    ),
-                    border: InputBorder.none,
-                    contentPadding: const EdgeInsets.symmetric(
-                      vertical: 20,
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 24),
-        _buildInfoBanner(),
-        const SizedBox(height: 40),
-        SizedBox(
-          width: double.infinity,
-          height: 56,
-          child: ElevatedButton(
-            onPressed: _isLoading ? null : _takeLoan,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Theme.of(context).colorScheme.primary,
-              foregroundColor:
-                  Theme.of(context).colorScheme.onPrimary,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
-              ),
-            ),
-            child: _isLoading
-                ? const SizedBox(
-                    height: 24,
-                    width: 24,
-                    child: CircularProgressIndicator(
-                      color: kWhite,
-                      strokeWidth: 2,
-                    ),
-                  )
-                : const Text(
-                    'Take Loan',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildInfoBanner() {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.orange.withValues(alpha: 0.20),
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: Colors.orange.withValues(alpha: 0.35),
-        ),
-      ),
-      child: Row(
-        children: [
-          const Icon(
-            Icons.info_outline,
-            color: Colors.orange,
-            size: 20,
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Text(
-              'Your loan will be due in 30 days. If unpaid, the amount will be automatically deducted, potentially resulting in a negative balance.',
-              style: TextStyle(
-                color: Colors.orange.shade800,
-                fontSize: 12,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-// =============================================================================
 // SYNAPSE PRO UPGRADE
 // =============================================================================
 
@@ -3515,14 +2557,12 @@ class UpgradePage extends StatefulWidget {
 class _UpgradePageState extends State<UpgradePage> {
   bool _isLoading = false;
 
-  /// Purchase Synapse Pro.
-  // BACKEND: POST /api/v1/subscriptions { product: "synapse_pro" }
   Future<void> _processUpgrade() async {
     if (_kProPrice > balanceNotifier.value) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         backgroundColor: Theme.of(context).colorScheme.error,
         content: Text(
-          'Insufficient balance. Please take a loan or receive money first.',
+          'Insufficient balance. Please receive money first.',
           style: TextStyle(
             color: Theme.of(context).colorScheme.onError,
           ),
@@ -3579,10 +2619,7 @@ class _UpgradePageState extends State<UpgradePage> {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
-          'Synapse Pro',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
+        title: const Text('Synapse Pro'),
         centerTitle: true,
       ),
       body: SafeArea(
@@ -3596,6 +2633,13 @@ class _UpgradePageState extends State<UpgradePage> {
                 decoration: BoxDecoration(
                   color: Theme.of(context).colorScheme.primary,
                   shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: kGreen.withValues(alpha: 0.4),
+                      blurRadius: 40,
+                      spreadRadius: 4,
+                    ),
+                  ],
                 ),
                 child: Icon(
                   Icons.stars_outlined,
@@ -3603,17 +2647,18 @@ class _UpgradePageState extends State<UpgradePage> {
                   size: 60,
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 32),
               const Text(
                 'Upgrade to Synapse Pro',
                 style: TextStyle(
                   fontSize: 28,
-                  fontWeight: FontWeight.bold,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.8,
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
               Text(
-                'Unlock premium features and get more out of your wallet.',
+                'Unlock 5% cashback on every bill you pay.',
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   color: Theme.of(context).colorScheme.onSurfaceVariant,
@@ -3623,19 +2668,25 @@ class _UpgradePageState extends State<UpgradePage> {
               const SizedBox(height: 40),
               _buildFeatures(),
               const SizedBox(height: 40),
-              const Text(
-                'Monthly Plan',
+              Text(
+                'MONTHLY PLAN',
                 style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.6,
+                  color: Theme.of(context)
+                      .colorScheme
+                      .onSurfaceVariant
+                      .withValues(alpha: 0.8),
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
               const Text(
                 '৳500.00 / month',
                 style: TextStyle(
-                  fontSize: 24,
-                  fontWeight: FontWeight.bold,
+                  fontSize: 26,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.6,
                 ),
               ),
               const SizedBox(height: 40),
@@ -3650,7 +2701,7 @@ class _UpgradePageState extends State<UpgradePage> {
                     foregroundColor:
                         Theme.of(context).colorScheme.onPrimary,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(20),
                     ),
                   ),
                   child: _isLoading
@@ -3665,8 +2716,8 @@ class _UpgradePageState extends State<UpgradePage> {
                       : const Text(
                           'Subscribe for ৳500',
                           style: TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.bold,
+                            fontSize: 17,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
                 ),
@@ -3680,24 +2731,14 @@ class _UpgradePageState extends State<UpgradePage> {
 
   Widget _buildFeatures() {
     return GlassContainer(
-      borderRadius: BorderRadius.circular(16),
-      blur: 15,
+      borderRadius: BorderRadius.circular(20),
+      blur: 20,
       padding: const EdgeInsets.all(20),
       child: Column(
         children: const [
           _FeatureRow(
             icon: Icons.check_circle_outline,
             text: '5% Cashback on all bills',
-          ),
-          SizedBox(height: 16),
-          _FeatureRow(
-            icon: Icons.check_circle_outline,
-            text: 'Higher loan limit (up to ৳5,000)',
-          ),
-          SizedBox(height: 16),
-          _FeatureRow(
-            icon: Icons.check_circle_outline,
-            text: 'Priority customer support',
           ),
         ],
       ),
@@ -3716,15 +2757,18 @@ class _FeatureRow extends StatelessWidget {
       children: [
         Icon(
           icon,
-          size: 20,
+          size: 22,
           color: Theme.of(context).colorScheme.primary,
         ),
         const SizedBox(width: 12),
-        Text(
-          text,
-          style: const TextStyle(
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
+        Expanded(
+          child: Text(
+            text,
+            style: const TextStyle(
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+              letterSpacing: -0.1,
+            ),
           ),
         ),
       ],
@@ -3733,7 +2777,7 @@ class _FeatureRow extends StatelessWidget {
 }
 
 // =============================================================================
-// SUBSCRIPTIONS (catalog + benefits + checkout)
+// SUBSCRIPTIONS  (SubscriptionPage unreachable – kept for future use)
 // =============================================================================
 
 class SubscriptionPage extends StatelessWidget {
@@ -3748,10 +2792,7 @@ class SubscriptionPage extends StatelessWidget {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
         ),
-        title: const Text(
-          'Subscriptions',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
+        title: const Text('Subscriptions'),
         centerTitle: true,
       ),
       body: ListView.separated(
@@ -3780,7 +2821,7 @@ class SubscriptionPage extends StatelessWidget {
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
         color: Theme.of(context).colorScheme.primary,
-        borderRadius: BorderRadius.circular(16),
+        borderRadius: BorderRadius.circular(20),
       ),
       child: Row(
         children: [
@@ -3795,7 +2836,7 @@ class SubscriptionPage extends StatelessWidget {
               'Synapse Pro Active',
               style: TextStyle(
                 color: Theme.of(context).colorScheme.onPrimary,
-                fontWeight: FontWeight.bold,
+                fontWeight: FontWeight.w700,
                 fontSize: 16,
               ),
             ),
@@ -3813,8 +2854,8 @@ class SubscriptionPage extends StatelessWidget {
   Widget _buildSubItem(BuildContext context, SubModel sub) {
     final isPro = sub.name == 'Synapse Pro';
     return GlassContainer(
-      borderRadius: BorderRadius.circular(16),
-      blur: 12,
+      borderRadius: BorderRadius.circular(20),
+      blur: 18,
       padding: const EdgeInsets.all(20),
       onTap: () => Navigator.push(
         context,
@@ -3832,8 +2873,8 @@ class SubscriptionPage extends StatelessWidget {
               color: Theme.of(context)
                   .colorScheme
                   .primary
-                  .withValues(alpha: 0.25),
-              borderRadius: BorderRadius.circular(12),
+                  .withValues(alpha: 0.18),
+              borderRadius: BorderRadius.circular(14),
             ),
             child: Icon(
               sub.icon,
@@ -3849,14 +2890,14 @@ class SubscriptionPage extends StatelessWidget {
                 Text(
                   sub.name,
                   style: const TextStyle(
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w700,
                     fontSize: 16,
                   ),
                 ),
                 const SizedBox(height: 4),
                 Text(
                   isPro
-                      ? 'Get 5% cashback and higher limits'
+                      ? 'Get 5% cashback on all bills'
                       : 'Monthly subscription',
                   style: TextStyle(
                     color: Theme.of(context)
@@ -3871,7 +2912,7 @@ class SubscriptionPage extends StatelessWidget {
           Text(
             formatMoney(sub.price),
             style: const TextStyle(
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w700,
               fontSize: 16,
             ),
           ),
@@ -3894,10 +2935,7 @@ class SubscriptionBenefitsPage extends StatelessWidget {
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Text(
-          sub.name,
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
+        title: Text(sub.name),
         centerTitle: true,
       ),
       body: SafeArea(
@@ -3923,10 +2961,11 @@ class SubscriptionBenefitsPage extends StatelessWidget {
                 'Get ${sub.name}',
                 style: const TextStyle(
                   fontSize: 28,
-                  fontWeight: FontWeight.bold,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.8,
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
               Text(
                 'See what is included in your subscription.',
                 textAlign: TextAlign.center,
@@ -3938,19 +2977,25 @@ class SubscriptionBenefitsPage extends StatelessWidget {
               const SizedBox(height: 40),
               _buildBenefits(context),
               const SizedBox(height: 40),
-              const Text(
-                'Monthly Plan',
+              Text(
+                'MONTHLY PLAN',
                 style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
+                  fontSize: 11,
+                  fontWeight: FontWeight.w700,
+                  letterSpacing: 1.6,
+                  color: Theme.of(context)
+                      .colorScheme
+                      .onSurfaceVariant
+                      .withValues(alpha: 0.8),
                 ),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
               Text(
                 '${formatMoney(sub.price)} / month',
                 style: const TextStyle(
                   fontSize: 24,
-                  fontWeight: FontWeight.bold,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.4,
                 ),
               ),
               const SizedBox(height: 40),
@@ -3971,14 +3016,14 @@ class SubscriptionBenefitsPage extends StatelessWidget {
                     foregroundColor:
                         Theme.of(context).colorScheme.onPrimary,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(20),
                     ),
                   ),
                   child: Text(
                     'Proceed to Pay ${formatMoney(sub.price)}',
                     style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
@@ -3992,8 +3037,8 @@ class SubscriptionBenefitsPage extends StatelessWidget {
 
   Widget _buildBenefits(BuildContext context) {
     return GlassContainer(
-      borderRadius: BorderRadius.circular(16),
-      blur: 15,
+      borderRadius: BorderRadius.circular(20),
+      blur: 20,
       padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -4005,7 +3050,7 @@ class SubscriptionBenefitsPage extends StatelessWidget {
                   children: [
                     Icon(
                       Icons.check_circle_outline,
-                      size: 20,
+                      size: 22,
                       color:
                           Theme.of(context).colorScheme.primary,
                     ),
@@ -4014,7 +3059,7 @@ class SubscriptionBenefitsPage extends StatelessWidget {
                       child: Text(
                         b,
                         style: const TextStyle(
-                          fontSize: 14,
+                          fontSize: 15,
                           fontWeight: FontWeight.w500,
                         ),
                       ),
@@ -4048,8 +3093,6 @@ class _SubscriptionCheckoutPageState
     super.dispose();
   }
 
-  /// Complete subscription purchase.
-  // BACKEND: POST /api/v1/subscriptions { product, account_id }
   Future<void> _processPurchase() async {
     final accountId = _accountIdController.text.trim();
     if (accountId.isEmpty) {
@@ -4065,7 +3108,7 @@ class _SubscriptionCheckoutPageState
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         backgroundColor: Theme.of(context).colorScheme.error,
         content: Text(
-          'Insufficient balance. Please take a loan or receive money.',
+          'Insufficient balance. Please receive money first.',
           style: TextStyle(
             color: Theme.of(context).colorScheme.onError,
           ),
@@ -4121,10 +3164,7 @@ class _SubscriptionCheckoutPageState
           icon: const Icon(Icons.arrow_back),
           onPressed: () => Navigator.pop(context),
         ),
-        title: Text(
-          'Buy ${widget.sub.name}',
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
+        title: Text('Buy ${widget.sub.name}'),
         centerTitle: true,
       ),
       body: SafeArea(
@@ -4141,7 +3181,7 @@ class _SubscriptionCheckoutPageState
                     color: Theme.of(context)
                         .colorScheme
                         .primary
-                        .withValues(alpha: 0.25),
+                        .withValues(alpha: 0.18),
                     shape: BoxShape.circle,
                   ),
                   child: Icon(
@@ -4156,7 +3196,8 @@ class _SubscriptionCheckoutPageState
                 'Account Details',
                 style: TextStyle(
                   fontSize: 20,
-                  fontWeight: FontWeight.bold,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.4,
                 ),
               ),
               const SizedBox(height: 8),
@@ -4174,7 +3215,8 @@ class _SubscriptionCheckoutPageState
                 'Order Summary',
                 style: TextStyle(
                   fontSize: 16,
-                  fontWeight: FontWeight.bold,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.3,
                 ),
               ),
               const SizedBox(height: 16),
@@ -4190,8 +3232,8 @@ class _SubscriptionCheckoutPageState
 
   Widget _buildAccountField(BuildContext context) {
     return GlassContainer(
-      borderRadius: BorderRadius.circular(16),
-      blur: 15,
+      borderRadius: BorderRadius.circular(20),
+      blur: 20,
       child: Row(
         children: [
           Padding(
@@ -4230,8 +3272,8 @@ class _SubscriptionCheckoutPageState
 
   Widget _buildSummary(BuildContext context) {
     return GlassContainer(
-      borderRadius: BorderRadius.circular(16),
-      blur: 15,
+      borderRadius: BorderRadius.circular(20),
+      blur: 20,
       padding: const EdgeInsets.all(20),
       child: Column(
         children: [
@@ -4247,7 +3289,7 @@ class _SubscriptionCheckoutPageState
               ),
               Text(
                 formatMoney(widget.sub.price),
-                style: const TextStyle(fontWeight: FontWeight.bold),
+                style: const TextStyle(fontWeight: FontWeight.w700),
               ),
             ],
           ),
@@ -4257,12 +3299,12 @@ class _SubscriptionCheckoutPageState
             children: [
               const Text(
                 'Total',
-                style: TextStyle(fontWeight: FontWeight.bold),
+                style: TextStyle(fontWeight: FontWeight.w700),
               ),
               Text(
                 formatMoney(widget.sub.price),
                 style: const TextStyle(
-                  fontWeight: FontWeight.bold,
+                  fontWeight: FontWeight.w800,
                   fontSize: 18,
                 ),
               ),
@@ -4283,7 +3325,7 @@ class _SubscriptionCheckoutPageState
           backgroundColor: Theme.of(context).colorScheme.primary,
           foregroundColor: Theme.of(context).colorScheme.onPrimary,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
+            borderRadius: BorderRadius.circular(20),
           ),
         ),
         child: _isLoading
@@ -4303,8 +3345,8 @@ class _SubscriptionCheckoutPageState
                   Text(
                     'Pay ${formatMoney(widget.sub.price)}',
                     style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ],
@@ -4336,9 +3378,6 @@ class _QrScannerPageState extends State<QrScannerPage> {
     super.dispose();
   }
 
-  /// Decode a scanned QR string into a recipient code.
-  // BACKEND: Validate code with `GET /api/v1/recipients/{code}` before
-  // navigating to AmountPage.
   void _handleDetect(BarcodeCapture capture) {
     for (final barcode in capture.barcodes) {
       final raw = barcode.rawValue;
@@ -4380,7 +3419,7 @@ class _QrScannerPageState extends State<QrScannerPage> {
           'Scan QR',
           style: TextStyle(
             color: kWhite,
-            fontWeight: FontWeight.bold,
+            fontWeight: FontWeight.w700,
           ),
         ),
         centerTitle: true,
@@ -4441,6 +3480,13 @@ class SuccessPage extends StatelessWidget {
                 decoration: BoxDecoration(
                   color: Theme.of(context).colorScheme.primary,
                   shape: BoxShape.circle,
+                  boxShadow: [
+                    BoxShadow(
+                      color: kGreen.withValues(alpha: 0.4),
+                      blurRadius: 40,
+                      spreadRadius: 4,
+                    ),
+                  ],
                 ),
                 child: Icon(
                   Icons.check,
@@ -4448,12 +3494,13 @@ class SuccessPage extends StatelessWidget {
                   color: Theme.of(context).colorScheme.onPrimary,
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 32),
               const Text(
                 'Transaction Successful',
                 style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
+                  fontSize: 24,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -0.6,
                 ),
               ),
               const SizedBox(height: 40),
@@ -4473,14 +3520,14 @@ class SuccessPage extends StatelessWidget {
                     foregroundColor:
                         Theme.of(context).colorScheme.onPrimary,
                     shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
+                      borderRadius: BorderRadius.circular(20),
                     ),
                   ),
                   child: const Text(
                     'Back to Home',
                     style: TextStyle(
                       fontSize: 16,
-                      fontWeight: FontWeight.bold,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
                 ),
@@ -4494,8 +3541,8 @@ class SuccessPage extends StatelessWidget {
 
   Widget _buildDetails(BuildContext context, DateTime now) {
     return GlassContainer(
-      borderRadius: BorderRadius.circular(20),
-      blur: 15,
+      borderRadius: BorderRadius.circular(22),
+      blur: 20,
       padding: const EdgeInsets.all(20),
       child: Column(
         children: [
@@ -4546,7 +3593,7 @@ class _DetailRow extends StatelessWidget {
         Text(
           value,
           style: TextStyle(
-            fontWeight: FontWeight.bold,
+            fontWeight: FontWeight.w700,
             fontSize: 14,
             color:
                 valueColor ?? Theme.of(context).colorScheme.onSurface,
@@ -4558,7 +3605,7 @@ class _DetailRow extends StatelessWidget {
 }
 
 // =============================================================================
-// BILL PAYMENT
+// BILL PAYMENT  (unreachable – kept for future use)
 // =============================================================================
 
 class BillPaymentPage extends StatefulWidget {
@@ -4585,9 +3632,6 @@ class _BillPaymentPageState extends State<BillPaymentPage> {
     super.dispose();
   }
 
-  /// Fetch current due amount from biller.
-  // BACKEND: GET /api/v1/bills/{biller}?id={meter/customer}
-  //   → { due_amount }
   Future<void> _checkBill() async {
     final id = _idController.text.trim();
     if (id.isEmpty) {
@@ -4607,14 +3651,12 @@ class _BillPaymentPageState extends State<BillPaymentPage> {
     });
   }
 
-  /// Pay the bill.
-  // BACKEND: POST /api/v1/bills/pay { biller, id, amount }
   Future<void> _processPayment() async {
     if (_dueAmount! > balanceNotifier.value) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         backgroundColor: Theme.of(context).colorScheme.error,
         content: Text(
-          'Insufficient balance. Please take a loan or receive money.',
+          'Insufficient balance. Please receive money first.',
           style: TextStyle(
             color: Theme.of(context).colorScheme.onError,
           ),
@@ -4666,10 +3708,7 @@ class _BillPaymentPageState extends State<BillPaymentPage> {
             }
           },
         ),
-        title: Text(
-          widget.billerName,
-          style: const TextStyle(fontWeight: FontWeight.bold),
-        ),
+        title: Text(widget.billerName),
         centerTitle: true,
       ),
       body: SafeArea(
@@ -4694,7 +3733,8 @@ class _BillPaymentPageState extends State<BillPaymentPage> {
           'Pay ${widget.billerName} Bill',
           style: const TextStyle(
             fontSize: 24,
-            fontWeight: FontWeight.bold,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.6,
           ),
         ),
         const SizedBox(height: 8),
@@ -4706,8 +3746,8 @@ class _BillPaymentPageState extends State<BillPaymentPage> {
         ),
         const SizedBox(height: 40),
         GlassContainer(
-          borderRadius: BorderRadius.circular(16),
-          blur: 15,
+          borderRadius: BorderRadius.circular(20),
+          blur: 20,
           child: Row(
             children: [
               Padding(
@@ -4758,7 +3798,7 @@ class _BillPaymentPageState extends State<BillPaymentPage> {
               foregroundColor:
                   Theme.of(context).colorScheme.onPrimary,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(20),
               ),
             ),
             child: _isLoading
@@ -4773,8 +3813,8 @@ class _BillPaymentPageState extends State<BillPaymentPage> {
                 : const Text(
                     'Check Bill',
                     style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
           ),
@@ -4819,7 +3859,8 @@ class _BillPaymentPageState extends State<BillPaymentPage> {
                 style: TextStyle(
                   color: Theme.of(context).colorScheme.onPrimary,
                   fontSize: 36,
-                  fontWeight: FontWeight.bold,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: -1.0,
                 ),
               ),
             ],
@@ -4827,8 +3868,8 @@ class _BillPaymentPageState extends State<BillPaymentPage> {
         ),
         const SizedBox(height: 30),
         GlassContainer(
-          borderRadius: BorderRadius.circular(16),
-          blur: 15,
+          borderRadius: BorderRadius.circular(20),
+          blur: 20,
           padding: const EdgeInsets.all(20),
           child: Column(
             children: [
@@ -4853,7 +3894,7 @@ class _BillPaymentPageState extends State<BillPaymentPage> {
               foregroundColor:
                   Theme.of(context).colorScheme.onPrimary,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(20),
               ),
             ),
             child: Row(
@@ -4864,8 +3905,8 @@ class _BillPaymentPageState extends State<BillPaymentPage> {
                 Text(
                   'Pay ৳${_dueAmount!.toStringAsFixed(2)}',
                   style: const TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ],
@@ -4890,7 +3931,7 @@ class _BillPaymentPageState extends State<BillPaymentPage> {
         Text(
           value,
           style: TextStyle(
-            fontWeight: FontWeight.bold,
+            fontWeight: FontWeight.w700,
             fontSize: 14,
             color:
                 valueColor ?? Theme.of(context).colorScheme.onSurface,
@@ -4902,7 +3943,7 @@ class _BillPaymentPageState extends State<BillPaymentPage> {
 }
 
 // =============================================================================
-// EDUCATION PAYMENT
+// EDUCATION PAYMENT  (unreachable – kept for future use)
 // =============================================================================
 
 class EducationPaymentPage extends StatefulWidget {
@@ -4949,9 +3990,6 @@ class _EducationPaymentPageState extends State<EducationPaymentPage> {
     super.dispose();
   }
 
-  /// Look up student details by ID.
-  // BACKEND: GET /api/v1/education/{institution}/students/{id}
-  //   → { name, department }
   Future<void> _findStudent() async {
     final id = _idController.text.trim();
     if (id.isEmpty) {
@@ -4978,9 +4016,6 @@ class _EducationPaymentPageState extends State<EducationPaymentPage> {
     });
   }
 
-  /// Process education fee payment.
-  // BACKEND: POST /api/v1/education/pay
-  //   { institution, student_id, amount }
   Future<void> _processPayment() async {
     final amount =
         double.tryParse(_amountController.text.trim()) ?? 0;
@@ -4997,7 +4032,7 @@ class _EducationPaymentPageState extends State<EducationPaymentPage> {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(
         backgroundColor: Theme.of(context).colorScheme.error,
         content: Text(
-          'Insufficient balance. Please take a loan or receive money.',
+          'Insufficient balance. Please receive money first.',
           style: TextStyle(
             color: Theme.of(context).colorScheme.onError,
           ),
@@ -5052,10 +4087,7 @@ class _EducationPaymentPageState extends State<EducationPaymentPage> {
             }
           },
         ),
-        title: const Text(
-          'Education Payment',
-          style: TextStyle(fontWeight: FontWeight.bold),
-        ),
+        title: const Text('Education Payment'),
         centerTitle: true,
       ),
       body: SafeArea(
@@ -5080,7 +4112,8 @@ class _EducationPaymentPageState extends State<EducationPaymentPage> {
           widget.institutionName,
           style: const TextStyle(
             fontSize: 22,
-            fontWeight: FontWeight.bold,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.4,
           ),
         ),
         const SizedBox(height: 8),
@@ -5092,8 +4125,8 @@ class _EducationPaymentPageState extends State<EducationPaymentPage> {
         ),
         const SizedBox(height: 40),
         GlassContainer(
-          borderRadius: BorderRadius.circular(16),
-          blur: 15,
+          borderRadius: BorderRadius.circular(20),
+          blur: 20,
           child: Row(
             children: [
               Padding(
@@ -5143,7 +4176,7 @@ class _EducationPaymentPageState extends State<EducationPaymentPage> {
               foregroundColor:
                   Theme.of(context).colorScheme.onPrimary,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(20),
               ),
             ),
             child: _isLoading
@@ -5158,8 +4191,8 @@ class _EducationPaymentPageState extends State<EducationPaymentPage> {
                 : const Text(
                     'Find Student',
                     style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
+                      fontSize: 17,
+                      fontWeight: FontWeight.w700,
                     ),
                   ),
           ),
@@ -5179,7 +4212,8 @@ class _EducationPaymentPageState extends State<EducationPaymentPage> {
           'Student Details',
           style: TextStyle(
             fontSize: 22,
-            fontWeight: FontWeight.bold,
+            fontWeight: FontWeight.w800,
+            letterSpacing: -0.4,
           ),
         ),
         const SizedBox(height: 8),
@@ -5191,8 +4225,8 @@ class _EducationPaymentPageState extends State<EducationPaymentPage> {
         ),
         const SizedBox(height: 30),
         GlassContainer(
-          borderRadius: BorderRadius.circular(16),
-          blur: 15,
+          borderRadius: BorderRadius.circular(20),
+          blur: 20,
           padding: const EdgeInsets.all(20),
           child: Column(
             children: [
@@ -5213,13 +4247,13 @@ class _EducationPaymentPageState extends State<EducationPaymentPage> {
           'Amount to Pay (৳)',
           style: TextStyle(
             fontSize: 16,
-            fontWeight: FontWeight.bold,
+            fontWeight: FontWeight.w700,
           ),
         ),
         const SizedBox(height: 10),
         GlassContainer(
-          borderRadius: BorderRadius.circular(16),
-          blur: 15,
+          borderRadius: BorderRadius.circular(20),
+          blur: 20,
           child: Row(
             children: [
               const Padding(
@@ -5229,7 +4263,7 @@ class _EducationPaymentPageState extends State<EducationPaymentPage> {
                   '৳',
                   style: TextStyle(
                     fontSize: 20,
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w800,
                   ),
                 ),
               ),
@@ -5242,7 +4276,7 @@ class _EducationPaymentPageState extends State<EducationPaymentPage> {
                   ),
                   style: TextStyle(
                     fontSize: 20,
-                    fontWeight: FontWeight.bold,
+                    fontWeight: FontWeight.w700,
                     color:
                         Theme.of(context).colorScheme.onSurface,
                   ),
@@ -5275,7 +4309,7 @@ class _EducationPaymentPageState extends State<EducationPaymentPage> {
               foregroundColor:
                   Theme.of(context).colorScheme.onPrimary,
               shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(16),
+                borderRadius: BorderRadius.circular(20),
               ),
             ),
             child: const Row(
@@ -5286,8 +4320,8 @@ class _EducationPaymentPageState extends State<EducationPaymentPage> {
                 Text(
                   'Proceed to Pay',
                   style: TextStyle(
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
+                    fontSize: 17,
+                    fontWeight: FontWeight.w700,
                   ),
                 ),
               ],
@@ -5314,7 +4348,7 @@ class _EducationPaymentPageState extends State<EducationPaymentPage> {
             value,
             textAlign: TextAlign.right,
             style: TextStyle(
-              fontWeight: FontWeight.bold,
+              fontWeight: FontWeight.w700,
               fontSize: 14,
               color: valueColor ??
                   Theme.of(context).colorScheme.onSurface,
@@ -5332,9 +4366,8 @@ class _EducationPaymentPageState extends State<EducationPaymentPage> {
 
 /// Frosted glass container with `BackdropFilter` blur.
 ///
-/// Respects the active theme: light mode uses a lighter tint, dark mode
-/// a darker one. Tap handling wraps child in an `InkWell` with matching
-/// clip radius.
+/// Two-stop gradient (lighter top-left → darker bottom-right) plus a
+/// crisp white border reproduces the specular edge of real glass.
 class GlassContainer extends StatelessWidget {
   final Widget child;
   final double? width;
@@ -5355,8 +4388,8 @@ class GlassContainer extends StatelessWidget {
     this.height,
     this.padding,
     this.margin,
-    this.borderRadius = const BorderRadius.all(Radius.circular(16)),
-    this.blur = 15.0,
+    this.borderRadius = const BorderRadius.all(Radius.circular(22)),
+    this.blur = 24.0,
     this.color,
     this.borderColor,
     this.onTap,
@@ -5366,12 +4399,28 @@ class GlassContainer extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final start = color ??
-        Colors.white.withValues(alpha: isDark ? 0.18 : 0.55);
-    final end =
-        color ?? Colors.white.withValues(alpha: isDark ? 0.08 : 0.28);
+
+    final tintTop = color ??
+        (isDark
+            ? Colors.white.withValues(alpha: 0.11)
+            : Colors.white.withValues(alpha: 0.72));
+    final tintBottom = color ??
+        (isDark
+            ? Colors.white.withValues(alpha: 0.04)
+            : Colors.white.withValues(alpha: 0.34));
     final border = borderColor ??
-        Colors.white.withValues(alpha: isDark ? 0.22 : 0.70);
+        (isDark
+            ? Colors.white.withValues(alpha: 0.16)
+            : Colors.white.withValues(alpha: 0.90));
+
+    final shadows = boxShadow ??
+        [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.28 : 0.06),
+            blurRadius: 28,
+            offset: const Offset(0, 10),
+          ),
+        ];
 
     Widget content = Container(
       width: width,
@@ -5381,11 +4430,11 @@ class GlassContainer extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [start, end],
+          colors: [tintTop, tintBottom],
         ),
         borderRadius: borderRadius,
-        border: Border.all(color: border, width: 0.5),
-        boxShadow: boxShadow,
+        border: Border.all(color: border, width: 1.0),
+        boxShadow: shadows,
       ),
       child: child,
     );
@@ -5396,6 +4445,8 @@ class GlassContainer extends StatelessWidget {
         child: InkWell(
           onTap: onTap,
           borderRadius: borderRadius,
+          splashColor: kGreen.withValues(alpha: 0.15),
+          highlightColor: kGreen.withValues(alpha: 0.06),
           child: content,
         ),
       );
