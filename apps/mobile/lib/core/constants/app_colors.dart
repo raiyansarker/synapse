@@ -1,0 +1,36 @@
+import 'package:flutter/material.dart';
+
+// =============================================================================
+// DOMINATING / BRAND GRADIENT (Warm Coral / Sunset Orangey-Red from inspiration)
+// Change these constants to easily update the dominating theme across the app.
+// =============================================================================
+const Color kDominantColor = Color(0xFFD36540);          // Warm terracotta / burnt orange
+const Color kDominantGradientStart = Color(0xFFE26842);  // Glowing sunset coral-orange (top)
+const Color kDominantGradientMid = Color(0xFFC74C2B);    // Rich burnt orange (middle)
+const Color kDominantGradientEnd = Color(0xFFA52C16);    // Deep terracotta / brick red (bottom)
+
+const LinearGradient kDominantGradient = LinearGradient(
+  colors: [kDominantGradientStart, kDominantGradientMid, kDominantGradientEnd],
+  begin: Alignment.topLeft,
+  end: Alignment.bottomRight,
+);
+
+// Backward-compatibility aliases
+const Color kDominantGradientDark = kDominantGradientEnd;
+const Color kDominantGradientLight = kDominantGradientStart;
+
+// =============================================================================
+// DESIGN TOKENS
+// =============================================================================
+const Color kBlack = Color(0xFF1A1A1A);
+const Color kDarkCardStart = Color(0xFF333333);
+const Color kDarkCardEnd = Color(0xFF1A1A1A);
+const Color kWhite = Colors.white;
+const Color kBgGrey = Color(0xFFF3F4F6);
+const Color kTextGrey = Color(0xFF9CA3AF);
+const Color kRed = Color(0xFFE53935);
+const Color kGreen = Color(0xFF10B981);
+
+const String kDefaultAvatar =
+    'https://images.unsplash.com/photo-1569779213435-ba3167dde7cc?q=80&w=1480&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=NHwxMjA3fDA%3D';
+const String kHardcodedName = 'Jack';
