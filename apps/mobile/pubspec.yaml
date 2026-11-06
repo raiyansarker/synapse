@@ -36,6 +36,12 @@ flutter:
   assets:
     - assets/images/logo.svg
     - assets/images/app_icon.png
+    - assets/icons/
+
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/InterVariable.ttf
 
 flutter_launcher_icons:
   android: "launcher_icon"
