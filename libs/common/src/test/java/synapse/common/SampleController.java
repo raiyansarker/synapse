@@ -19,7 +19,9 @@ class SampleController {
   @GetMapping("/items/{id}")
   Item get(@PathVariable String id) {
     if ("missing".equals(id)) {
-      throw new NotFoundException("Item missing was not found");
+      throw new NotFoundException(
+          "Item not found",
+          "No item exists for the given id. Confirm the id and try again.");
     }
     if ("boom".equals(id)) {
       throw new IllegalStateException("boom");

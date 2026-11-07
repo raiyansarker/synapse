@@ -6,11 +6,11 @@ import org.springframework.http.HttpStatus;
 
 public class UnauthorizedException extends HttpError {
 
-  public UnauthorizedException(String detail) {
-    this(detail, List.of());
+  public UnauthorizedException(String title, String detail) {
+    this(title, detail, List.of());
   }
 
-  public UnauthorizedException(String detail, List<Map<String, String>> reasons) {
-    super(HttpStatus.UNAUTHORIZED, "Unauthorized", detail, reasons);
+  public UnauthorizedException(String title, String detail, List<Map<String, String>> reasons) {
+    super(HttpStatus.UNAUTHORIZED, title, detail, reasons);
   }
 }

@@ -65,8 +65,10 @@ class CommonHttpTest {
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.success").value(false))
         .andExpect(jsonPath("$.data").doesNotExist())
-        .andExpect(jsonPath("$.error.title").value("Not Found"))
-        .andExpect(jsonPath("$.error.detail").value("Item missing was not found"))
+        .andExpect(jsonPath("$.error.title").value("Item not found"))
+        .andExpect(
+            jsonPath("$.error.detail")
+                .value("No item exists for the given id. Confirm the id and try again."))
         .andExpect(jsonPath("$.meta.requestId").value("req-missing"));
   }
 

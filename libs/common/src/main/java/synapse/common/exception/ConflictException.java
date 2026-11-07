@@ -6,11 +6,11 @@ import org.springframework.http.HttpStatus;
 
 public class ConflictException extends HttpError {
 
-  public ConflictException(String detail) {
-    this(detail, List.of());
+  public ConflictException(String title, String detail) {
+    this(title, detail, List.of());
   }
 
-  public ConflictException(String detail, List<Map<String, String>> reasons) {
-    super(HttpStatus.CONFLICT, "Conflict", detail, reasons);
+  public ConflictException(String title, String detail, List<Map<String, String>> reasons) {
+    super(HttpStatus.CONFLICT, title, detail, reasons);
   }
 }
