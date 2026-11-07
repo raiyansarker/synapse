@@ -10,6 +10,7 @@ class VirtualAddressValidatorTest {
   @Test
   void acceptsANameAndABank() {
     assertTrue(VirtualAddressValidator.matches("mina@city"));
+    assertTrue(VirtualAddressValidator.matches("user1@ucb"));
   }
 
   @Test
@@ -23,5 +24,8 @@ class VirtualAddressValidatorTest {
     assertFalse(VirtualAddressValidator.matches("mina@city "));
     assertFalse(VirtualAddressValidator.matches("mina@city@extra"));
     assertFalse(VirtualAddressValidator.matches("Mina@city"));
+    assertFalse(VirtualAddressValidator.matches("mina@City"));
+    assertFalse(VirtualAddressValidator.matches("mina.user@city"));
+    assertFalse(VirtualAddressValidator.matches("mina@ucb1"));
   }
 }
