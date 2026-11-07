@@ -2,7 +2,6 @@ plugins {
     java
     id("org.springframework.boot") version "4.1.1"
     id("io.spring.dependency-management") version "1.1.7"
-    id("com.diffplug.spotless") version "8.11.0"
 }
 
 group = "synapse"
@@ -38,12 +37,6 @@ dependencies {
 tasks.withType<Test> {
     useJUnitPlatform()
     maxParallelForks = 1
-}
-
-spotless {
-    java {
-        googleJavaFormat("2.0.0")
-    }
 }
 
 tasks.named<org.springframework.boot.gradle.tasks.run.BootRun>("bootRun") {
