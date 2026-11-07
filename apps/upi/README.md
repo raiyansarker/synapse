@@ -80,3 +80,19 @@ From this directory:
 The app listens on port 8080. Set `SERVER_PORT` to use another port.
 
 Running from an IDE does not load `.env`. Export the same three variables in the run configuration, or start the app with `./gradlew bootRun`.
+
+## Seed demo banks
+
+Bank seeding is off by default (`upi.banks.seed: false`). Enable it for one boot to insert demo banks if they are missing:
+
+```bash
+./gradlew bootRun --args='--upi.banks.seed=true'
+```
+
+| Identifier | Base URL |
+| --- | --- |
+| `city` | `http://localhost:9090` |
+| `ucb` | `http://localhost:9091` |
+| `brac` | `http://localhost:9092` |
+
+Existing identifiers are left unchanged. Turn the flag off again after seeding so later boots do not re-run the seeder.

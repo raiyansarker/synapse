@@ -21,6 +21,11 @@ spring:
         jdbc:
           time_zone: UTC
 
+# Set true (e.g. bootRun --args='--upi.banks.seed=true') to insert demo banks.
+upi:
+  banks:
+    seed: false
+
 springdoc:
   api-docs:
     path: /v3/api-docs
