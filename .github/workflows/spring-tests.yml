@@ -1,5 +1,5 @@
 # Runs the shared library, then the bank, then UPI. One suite at a time.
-# The context tests need PostgreSQL.
+# The context tests need PostgreSQL and RabbitMQ for UPI.
 
 name: Spring tests
 
@@ -37,6 +37,15 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 5
+      rabbitmq:
+        image: rabbitmq:4-management
+        ports:
+          - 5672:5672
+        options: >-
+          --health-cmd "rabbitmq-diagnostics -q ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     steps:
       - uses: actions/checkout@v7
 
@@ -51,6 +60,7 @@ jobs:
           SPRING_DATASOURCE_URL: jdbc:postgresql://localhost:5432/postgres
           SPRING_DATASOURCE_USERNAME: postgres
           SPRING_DATASOURCE_PASSWORD: postgres
+          SPRING_RABBITMQ_ADDRESSES: amqp://guest:guest@localhost:5672/
         run: |
           (cd libs/common && ./gradlew spotlessCheck test --no-parallel --max-workers=1)
           (cd apps/bank && ./gradlew spotlessCheck test --no-parallel --max-workers=1)
