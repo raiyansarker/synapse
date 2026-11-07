@@ -18,7 +18,6 @@ spring:
         jdbc:
           time_zone: UTC
 
-
 logging:
   level:
     com.zaxxer.hikari: WARN
