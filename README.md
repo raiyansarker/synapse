@@ -18,7 +18,7 @@ The wallet is the client. The dashed line is the intended path: the app still ke
 
 | Path | Role |
 | --- | --- |
-| [`apps/upi`](apps/upi) | The switch. Spring Boot 4.1, Java 25, PostgreSQL. Each payment is a [Spring Statemachine](apps/upi/docs/payment-state-machine.md). |
+| [`apps/upi`](apps/upi) | The switch. Spring Boot 4.1, Java 25, PostgreSQL. |
 | [`apps/bank`](apps/bank) | A participating bank. Spring Boot 4.1, Java 25, PostgreSQL. |
 | [`apps/mobile`](apps/mobile) | Synapse Wallet. Flutter. |
 | [`libs/common`](libs/common) | Shared HTTP envelope, error types, and request ids for the Java services. |
@@ -72,8 +72,6 @@ Virtual addresses look like `name@bank`. The part after `@` is the bank handle.
 3. The payer's bank authorizes the debit.
 4. The payee's bank credits the payee. A rejected credit is reversed at the payer's bank.
 5. On success, the switch tells both banks, then the payment is complete.
-
-States, the ten allowed transitions, and what each one means for the money are in [apps/upi/docs/payment-state-machine.md](apps/upi/docs/payment-state-machine.md).
 
 ## Shared HTTP shape
 
