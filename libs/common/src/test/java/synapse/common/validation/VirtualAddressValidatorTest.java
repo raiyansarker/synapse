@@ -22,5 +22,6 @@ class VirtualAddressValidatorTest {
     assertFalse(VirtualAddressValidator.matches(" mina@city"));
     assertFalse(VirtualAddressValidator.matches("mina@city "));
     assertFalse(VirtualAddressValidator.matches("mina@city@extra"));
+    assertFalse(VirtualAddressValidator.matches("Mina@city"));
   }
 }

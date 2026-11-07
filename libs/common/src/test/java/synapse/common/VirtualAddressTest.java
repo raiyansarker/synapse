@@ -11,8 +11,8 @@ class VirtualAddressTest {
   void splitsTheUsernameAndTheBank() {
     VirtualAddress address = VirtualAddress.parse("mina@city");
 
-    assertEquals("mina", address.getUsername());
-    assertEquals("city", address.getBankIdentifier());
+    assertEquals("mina", address.username());
+    assertEquals("city", address.bankIdentifier());
     assertEquals("mina@city", address.toString());
   }
 
@@ -21,5 +21,11 @@ class VirtualAddressTest {
     assertThrows(IllegalArgumentException.class, () -> VirtualAddress.parse("a@ "));
     assertThrows(IllegalArgumentException.class, () -> VirtualAddress.parse(" mina@city"));
     assertThrows(IllegalArgumentException.class, () -> VirtualAddress.parse("mina@city "));
+  }
+
+  @Test
+  void rejectsAnUppercaseUsername() {
+    assertThrows(IllegalArgumentException.class, () -> VirtualAddress.parse("Mina@city"));
+    assertThrows(IllegalArgumentException.class, () -> new VirtualAddress("Mina", "city"));
   }
 }

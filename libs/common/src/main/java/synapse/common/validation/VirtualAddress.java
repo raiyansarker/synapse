@@ -9,8 +9,8 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * A virtual address, {@code name@bank}. Both sides are trimmed and must be non-blank, and the text
- * must already be that trimmed form.
+ * A virtual address, {@code name@bank}. Both sides are trimmed and must be non-blank, the text must
+ * already be that trimmed form, and the username must be lowercase.
  */
 @Documented
 @Constraint(validatedBy = VirtualAddressValidator.class)
