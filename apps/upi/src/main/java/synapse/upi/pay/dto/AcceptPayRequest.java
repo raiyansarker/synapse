@@ -9,17 +9,17 @@ import java.math.BigDecimal;
 import synapse.common.validation.VirtualAddress;
 
 public record AcceptPayRequest(
-    @NotBlank
-    @VirtualAddress
-    String sva,
+  @NotBlank
+  @VirtualAddress
+  String sva,
 
-    @NotNull
-    @DecimalMin("0.01")
-    @DecimalMax("1000000.00")
-    @Digits(integer = 7, fraction = 2)
-    BigDecimal amount,
+  @NotNull
+  @DecimalMin("0.01")
+  @DecimalMax("1000000.00")
+  @Digits(integer = 7, fraction = 2)
+  BigDecimal amount,
 
-    @NotBlank
-    @VirtualAddress
-    String rva
+  @NotBlank
+  @VirtualAddress
+  String rva
 ) {}
