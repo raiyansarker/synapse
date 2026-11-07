@@ -2,7 +2,7 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/modules/common.main.iml" filepath="$PROJECT_DIR$/.idea/modules/common.main.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/-925508337/common.main.iml" filepath="$PROJECT_DIR$/.idea/modules/-925508337/common.main.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/synapse.upi.iml" filepath="$PROJECT_DIR$/.idea/synapse.upi.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/upi.main.iml" filepath="$PROJECT_DIR$/.idea/modules/upi.main.iml" />
       <module fileurl="file://$PROJECT_DIR$/.idea/modules/upi.test.iml" filepath="$PROJECT_DIR$/.idea/modules/upi.test.iml" />
