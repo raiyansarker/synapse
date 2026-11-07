@@ -39,7 +39,12 @@ public class Pay {
     VirtualAddress rva = VirtualAddress.parse(request.rva());
     Optional.of(List.of(sva.bankIdentifier(), rva.bankIdentifier()))
         .filter(bankService::exist)
-        .orElseThrow(() -> new NotFoundException("bank was not found"));
+        .orElseThrow(
+            () -> new NotFoundException(
+              "Bank not found",
+              "One or both virtual-address banks are unknown or disabled."
+            )
+        );
 
     return new AcceptPayResponse(payService.accept(request));
   }
