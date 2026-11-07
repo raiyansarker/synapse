@@ -3,6 +3,7 @@ package synapse.common;
 import static org.hamcrest.Matchers.not;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -51,13 +52,23 @@ class CommonHttpTest {
   }
 
   @Test
+  void leavesHtmlAlone() throws Exception {
+    mvc.perform(get("/html"))
+        .andExpect(status().isOk())
+        .andExpect(content().contentTypeCompatibleWith(MediaType.TEXT_HTML))
+        .andExpect(content().string("<html><body>ok</body></html>"));
+  }
+
+  @Test
   void rendersNotFound() throws Exception {
     mvc.perform(get("/items/missing").header("X-Request-Id", "req-missing"))
         .andExpect(status().isNotFound())
         .andExpect(jsonPath("$.success").value(false))
         .andExpect(jsonPath("$.data").doesNotExist())
-        .andExpect(jsonPath("$.error.title").value("Not Found"))
-        .andExpect(jsonPath("$.error.detail").value("Item missing was not found"))
+        .andExpect(jsonPath("$.error.title").value("Item not found"))
+        .andExpect(
+            jsonPath("$.error.detail")
+                .value("No item exists for the given id. Confirm the id and try again."))
         .andExpect(jsonPath("$.meta.requestId").value("req-missing"));
   }
 

@@ -29,7 +29,14 @@ public class ApiResponseAdvice implements ResponseBodyAdvice<Object> {
       Class<? extends HttpMessageConverter<?>> selectedConverterType,
       ServerHttpRequest request,
       ServerHttpResponse response) {
-    if (body instanceof ApiResponse<?> || body instanceof byte[]) {
+    if (body instanceof ApiResponse<?>
+        || body instanceof CharSequence
+        || body instanceof byte[]) {
+      return body;
+    }
+    if (selectedContentType != null
+        && !MediaType.APPLICATION_JSON.isCompatibleWith(selectedContentType)
+        && !MediaType.APPLICATION_PROBLEM_JSON.isCompatibleWith(selectedContentType)) {
       return body;
     }
 

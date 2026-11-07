@@ -1,0 +1,12 @@
+---
+description: 2-space indent for Java (upi, bank, common); not mobile
+globs: "{apps/upi,apps/bank,libs}/**/*.{java,gradle,kts}"
+alwaysApply: false
+---
+
+# Java indentation
+
+- Use **2 spaces** per indent level (never tabs, never 4 spaces).
+- Continuation indent is also **2**.
+- Applies to `apps/upi`, `apps/bank`, and `libs/**` only.
+- Do **not** change indentation rules under `apps/mobile`.

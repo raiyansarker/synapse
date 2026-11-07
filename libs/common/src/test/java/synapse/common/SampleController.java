@@ -3,6 +3,7 @@ package synapse.common;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import java.time.Instant;
+import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -18,7 +19,9 @@ class SampleController {
   @GetMapping("/items/{id}")
   Item get(@PathVariable String id) {
     if ("missing".equals(id)) {
-      throw new NotFoundException("Item missing was not found");
+      throw new NotFoundException(
+          "Item not found",
+          "No item exists for the given id. Confirm the id and try again.");
     }
     if ("boom".equals(id)) {
       throw new IllegalStateException("boom");
@@ -35,6 +38,11 @@ class SampleController {
   ApiResponse<Item> alreadyWrapped() {
     return ApiResponse.ok(
         new Item("wrapped"), ApiMeta.builder().requestId("fixed").timestamp(Instant.EPOCH).build());
+  }
+
+  @GetMapping(value = "/html", produces = MediaType.TEXT_HTML_VALUE)
+  String html() {
+    return "<html><body>ok</body></html>";
   }
 
   record Item(String id) {}

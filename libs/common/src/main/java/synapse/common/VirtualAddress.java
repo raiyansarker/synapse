@@ -2,30 +2,28 @@ package synapse.common;
 
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.Objects;
+import java.util.regex.Pattern;
 
 /**
- * A virtual address, {@code username@bank}. {@link #getUsername()} is the account on that bank.
- * {@link #getBankIdentifier()} is the bank handle the ledger resolves.
+ * A virtual address, {@code username@bank}. {@code username} is {@code [a-z0-9]+}. {@code
+ * bankIdentifier} is {@code [a-z]+} (no digits, dots, or other punctuation).
  */
-public final class VirtualAddress implements Serializable {
+public record VirtualAddress(String username, String bankIdentifier) implements Serializable {
 
-  @Serial private static final long serialVersionUID = 1L;
+  @Serial private static final long serialVersionUID = 3L;
 
-  private final String username;
-  private final String bankIdentifier;
+  private static final Pattern USERNAME = Pattern.compile("[a-z0-9]+");
+  private static final Pattern BANK = Pattern.compile("[a-z]+");
 
-  public VirtualAddress(String username, String bankIdentifier) {
-    if (!side(username) || !side(bankIdentifier)) {
+  public VirtualAddress {
+    if (!username(username) || !bank(bankIdentifier)) {
       throw new IllegalArgumentException("virtual address must look like name@bank");
     }
-    this.username = username;
-    this.bankIdentifier = bankIdentifier;
   }
 
   /**
-   * Parses {@code username@bank}. Each side is trimmed, then both sides must be non-blank, and the
-   * original text must already be that trimmed form. Padding is rejected.
+   * Parses {@code username@bank}. One {@code @}, no padding, username {@code [a-z0-9]+}, bank
+   * {@code [a-z]+}.
    */
   public static VirtualAddress parse(String value) {
     int at = value == null ? -1 : value.indexOf('@');
@@ -51,36 +49,16 @@ public final class VirtualAddress implements Serializable {
     }
   }
 
-  public String getUsername() {
-    return username;
-  }
-
-  public String getBankIdentifier() {
-    return bankIdentifier;
-  }
-
   @Override
   public String toString() {
     return username + "@" + bankIdentifier;
   }
 
-  @Override
-  public boolean equals(Object other) {
-    if (this == other) {
-      return true;
-    }
-    if (!(other instanceof VirtualAddress address)) {
-      return false;
-    }
-    return username.equals(address.username) && bankIdentifier.equals(address.bankIdentifier);
+  private static boolean username(String value) {
+    return value != null && USERNAME.matcher(value).matches();
   }
 
-  @Override
-  public int hashCode() {
-    return Objects.hash(username, bankIdentifier);
-  }
-
-  private static boolean side(String value) {
-    return value != null && !value.isBlank() && value.equals(value.trim());
+  private static boolean bank(String value) {
+    return value != null && BANK.matcher(value).matches();
   }
 }

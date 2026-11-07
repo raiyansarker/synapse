@@ -17,7 +17,9 @@ public class DemoController {
   @GetMapping("/{id}")
   public Account get(@PathVariable String id) {
     if ("missing".equals(id)) {
-      throw new NotFoundException("Account missing was not found");
+      throw new NotFoundException(
+          "Account not found",
+          "No account exists for the given id. Confirm the id and try again.");
     }
     return new Account(id, "city");
   }
