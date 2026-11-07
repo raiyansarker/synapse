@@ -8,6 +8,9 @@ spring:
     url: ${SPRING_DATASOURCE_URL}
     username: ${SPRING_DATASOURCE_USERNAME}
     password: ${SPRING_DATASOURCE_PASSWORD}
+  rabbitmq:
+    # Full URI. amqps:// turns SSL on. Path after the host is the virtual host.
+    addresses: ${SPRING_RABBITMQ_ADDRESSES}
   jpa:
     open-in-view: false
     show-sql: false
