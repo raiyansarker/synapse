@@ -2,30 +2,26 @@ package synapse.common;
 
 import java.io.Serial;
 import java.io.Serializable;
-import java.util.Objects;
+import java.util.Locale;
 
 /**
- * A virtual address, {@code username@bank}. {@link #getUsername()} is the account on that bank.
- * {@link #getBankIdentifier()} is the bank handle the ledger resolves.
+ * A virtual address, {@code username@bank}. {@code username} is the account on that bank and must
+ * be lowercase. {@code bankIdentifier} is the bank handle the ledger resolves.
  */
-public final class VirtualAddress implements Serializable {
+public record VirtualAddress(String username, String bankIdentifier) implements Serializable {
 
-  @Serial private static final long serialVersionUID = 1L;
+  @Serial private static final long serialVersionUID = 2L;
 
-  private final String username;
-  private final String bankIdentifier;
-
-  public VirtualAddress(String username, String bankIdentifier) {
-    if (!side(username) || !side(bankIdentifier)) {
+  public VirtualAddress {
+    if (!side(username) || !side(bankIdentifier) || !lowercase(username)) {
       throw new IllegalArgumentException("virtual address must look like name@bank");
     }
-    this.username = username;
-    this.bankIdentifier = bankIdentifier;
   }
 
   /**
    * Parses {@code username@bank}. Each side is trimmed, then both sides must be non-blank, and the
-   * original text must already be that trimmed form. Padding is rejected.
+   * original text must already be that trimmed form. Padding is rejected. The username must already
+   * be lowercase.
    */
   public static VirtualAddress parse(String value) {
     int at = value == null ? -1 : value.indexOf('@');
@@ -51,36 +47,16 @@ public final class VirtualAddress implements Serializable {
     }
   }
 
-  public String getUsername() {
-    return username;
-  }
-
-  public String getBankIdentifier() {
-    return bankIdentifier;
-  }
-
   @Override
   public String toString() {
     return username + "@" + bankIdentifier;
   }
 
-  @Override
-  public boolean equals(Object other) {
-    if (this == other) {
-      return true;
-    }
-    if (!(other instanceof VirtualAddress address)) {
-      return false;
-    }
-    return username.equals(address.username) && bankIdentifier.equals(address.bankIdentifier);
-  }
-
-  @Override
-  public int hashCode() {
-    return Objects.hash(username, bankIdentifier);
-  }
-
   private static boolean side(String value) {
     return value != null && !value.isBlank() && value.equals(value.trim());
+  }
+
+  private static boolean lowercase(String value) {
+    return value.equals(value.toLowerCase(Locale.ROOT));
   }
 }
