@@ -18,7 +18,7 @@ The wallet is the client. The dashed line is the intended path: the app still ke
 
 | Path | Role |
 | --- | --- |
-| [`apps/upi`](apps/upi) | The switch. Spring Boot 4.1, Java 25, PostgreSQL. |
+| [`apps/upi`](apps/upi) | The switch. Spring Boot 4.1, Java 25, PostgreSQL, RabbitMQ. |
 | [`apps/bank`](apps/bank) | A participating bank. Spring Boot 4.1, Java 25, PostgreSQL. |
 | [`apps/mobile`](apps/mobile) | Synapse Wallet. Flutter. |
 | [`libs/common`](libs/common) | Shared HTTP envelope, error types, and request ids for the Java services. |
@@ -29,6 +29,7 @@ The wallet is the client. The dashed line is the intended path: the app still ke
 
 - Java 25, for the switch, the bank, and `libs/common`
 - PostgreSQL, one database per service (`upi` and `bank`)
+- RabbitMQ, for the switch (`apps/upi`)
 - Flutter SDK `^3.13.5`, for the wallet
 
 ## Run the services
