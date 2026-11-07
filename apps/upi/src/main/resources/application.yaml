@@ -21,6 +21,10 @@ spring:
         jdbc:
           time_zone: UTC
 
+springdoc:
+  api-docs:
+    path: /v3/api-docs
+
 logging:
   level:
     com.zaxxer.hikari: WARN
