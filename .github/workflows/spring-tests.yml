@@ -1,5 +1,5 @@
 # Runs the shared library, then the bank, then UPI. One suite at a time.
-# The context tests need PostgreSQL, including DBOS checkpoints for UPI.
+# The context tests need PostgreSQL.
 
 name: Spring tests
 

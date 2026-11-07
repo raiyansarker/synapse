@@ -18,10 +18,6 @@ spring:
         jdbc:
           time_zone: UTC
 
-dbos:
-  datasource:
-    schema: dbos
-    use-listen-notify: false
 
 logging:
   level:
