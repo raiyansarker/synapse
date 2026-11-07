@@ -1,6 +1,8 @@
 package synapse.upi.pay.controller;
 
 import jakarta.validation.Valid;
+import java.util.List;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -8,10 +10,10 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
-import synapse.upi.ledger.Ledger;
-import synapse.upi.ledger.LedgerRepository;
-import synapse.upi.pay.queue.AcceptedPay;
-import synapse.upi.pay.queue.PayProducer;
+import synapse.common.VirtualAddress;
+import synapse.common.exception.NotFoundException;
+import synapse.upi.bank.BankService;
+import synapse.upi.pay.PayService;
 import synapse.upi.pay.dto.AcceptPayRequest;
 import synapse.upi.pay.dto.AcceptPayResponse;
 
@@ -19,8 +21,8 @@ import synapse.upi.pay.dto.AcceptPayResponse;
 @RequestMapping("/api/pay")
 @RequiredArgsConstructor
 public class Pay {
-  private final LedgerRepository ledgerRepository;
-  private final PayProducer pays;
+  private final PayService payService;
+  private final BankService bankService;
 
   /**
    * Job is to accept a payment request in the ledger push it to the queue and send an idempotency
@@ -32,27 +34,14 @@ public class Pay {
       @RequestBody
       AcceptPayRequest request
   ) {
-    /**
-     * TODO: check for banks
-     */
 
-    Ledger transaction = Ledger.accepted(
-        request.sva(),
-        request.rva(),
-        request.amount()
-    );
-    ledgerRepository.save(transaction);
+    VirtualAddress sva = VirtualAddress.parse(request.sva());
+    VirtualAddress rva = VirtualAddress.parse(request.rva());
+    Optional.of(List.of(sva.bankIdentifier(), rva.bankIdentifier()))
+        .filter(bankService::exist)
+        .orElseThrow(() -> new NotFoundException("bank was not found"));
 
-    pays.publish(
-        new AcceptedPay(
-            transaction.getId(),
-            transaction.getSva(),
-            transaction.getAmount(),
-            transaction.getRva()
-        )
-    );
-
-      return new AcceptPayResponse(transaction.getId());
+    return new AcceptPayResponse(payService.accept(request));
   }
 
   /** get the payment from the ledger using id */
