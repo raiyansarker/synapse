@@ -6,7 +6,6 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 public class OpenApiDocsController {
-
   @GetMapping(value = "/docs", produces = MediaType.TEXT_HTML_VALUE)
   public String docs() {
     return """
