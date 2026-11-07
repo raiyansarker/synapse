@@ -18,6 +18,9 @@ class VirtualAddressValidatorTest {
     assertFalse(VirtualAddressValidator.matches("mina"));
     assertFalse(VirtualAddressValidator.matches("@city"));
     assertFalse(VirtualAddressValidator.matches("mina@"));
+    assertFalse(VirtualAddressValidator.matches("a@ "));
+    assertFalse(VirtualAddressValidator.matches(" mina@city"));
+    assertFalse(VirtualAddressValidator.matches("mina@city "));
     assertFalse(VirtualAddressValidator.matches("mina@city@extra"));
   }
 }
