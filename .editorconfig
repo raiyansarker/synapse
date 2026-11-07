@@ -1,0 +1,10 @@
+root = true
+
+# Java services and shared libs. Mobile (Flutter/Dart) is excluded.
+[{apps/upi,apps/bank,libs}/**/*.{java,gradle,kts}]
+indent_style = space
+indent_size = 2
+tab_width = 2
+continuation_indent_size = 2
+insert_final_newline = true
+trim_trailing_whitespace = true
