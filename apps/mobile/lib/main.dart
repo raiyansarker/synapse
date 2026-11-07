@@ -6,7 +6,6 @@
 
 import 'dart:async';
 import 'dart:io';
-import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -21,22 +20,20 @@ import 'package:url_launcher/url_launcher.dart';
 // CONSTANTS — Bangladesh-inspired palette
 // =============================================================================
 
-// Bangladesh flag colors
-const Color kGreen = Color(0xFF006A4E);        // official flag green
-const Color kGreenDeep = Color(0xFF004B37);    // darker depth
-const Color kGreenBright = Color(0xFF00A677);  // vivid accent
-const Color kGreenMint = Color(0xFFE8F4EC);    // soft mint
-const Color kRed = Color(0xFFF42A41);          // official flag red
-const Color kRedBright = Color(0xFFFF5468);    // vivid accent
-const Color kRedSoft = Color(0xFFFFE5E8);      // soft tint
+const Color kGreen = Color(0xFF006A4E);
+const Color kGreenDeep = Color(0xFF004B37);
+const Color kGreenBright = Color(0xFF00A677);
+const Color kGreenMint = Color(0xFFE8F4EC);
+const Color kRed = Color(0xFFF42A41);
+const Color kRedBright = Color(0xFFFF5468);
+const Color kRedSoft = Color(0xFFFFE5E8);
 
-// Neutrals
-const Color kInk = Color(0xFF0A1811);          // deep green-black ink
-const Color kInkSoft = Color(0xFF13221A);      // softer ink
-const Color kCream = Color(0xFFFBF9F4);        // warm off-white
-const Color kFog = Color(0xFFF0F5F2);          // cool light grey
-const Color kSlate = Color(0xFF4A5C52);        // mid neutral
-const Color kSlateSoft = Color(0xFF8CA096);    // muted neutral
+const Color kInk = Color(0xFF0A1811);
+const Color kInkSoft = Color(0xFF13221A);
+const Color kCream = Color(0xFFFBF9F4);
+const Color kFog = Color(0xFFF0F5F2);
+const Color kSlate = Color(0xFF4A5C52);
+const Color kSlateSoft = Color(0xFF8CA096);
 const Color kWhite = Colors.white;
 const Color kBlack = Color(0xFF1A1A1A);
 
@@ -51,8 +48,6 @@ const double _kProPrice = 500.0;
 // =============================================================================
 // APP STATE
 // =============================================================================
-
-// BACKEND: Replace each notifier with a stream from your state manager.
 
 final ValueNotifier<bool> authNotifier = ValueNotifier(false);
 final ValueNotifier<bool> darkModeNotifier = ValueNotifier(false);
@@ -152,7 +147,6 @@ class AdItem {
 // STATIC DATA
 // =============================================================================
 
-// Only Synapse Pro is a real in-app subscription.
 final List<SubModel> availableSubs = [
   const SubModel('Synapse Pro', Icons.stars_outlined, 500.0,
       'Synapse Account Email', [
@@ -202,6 +196,8 @@ Future<bool> _authenticateBiometrics() async {
 
 Future<bool> _showPasswordDialog(BuildContext context) async {
   final prefs = await SharedPreferences.getInstance();
+  if (!context.mounted) return false;
+
   final storedPassword = prefs.getString(_kUserPasswordKey) ?? 'password';
   final passCtrl = TextEditingController();
 
@@ -259,9 +255,6 @@ void _addTransaction(Tx tx) {
 // FLOWING BACKGROUND
 // =============================================================================
 
-/// Animated mesh-gradient background. Slow, drifting radial blobs in
-/// Bangladesh green + red. Three independent durations (14s / 22s / 30s)
-/// so the composition never loops identically twice.
 class FlowingBackground extends StatefulWidget {
   final bool isDark;
   const FlowingBackground({super.key, required this.isDark});
@@ -315,7 +308,6 @@ class _FlowingBackgroundState extends State<FlowingBackground>
           child: Stack(
             fit: StackFit.expand,
             children: [
-              // Base gradient — its axis slowly tilts
               DecoratedBox(
                 decoration: BoxDecoration(
                   gradient: LinearGradient(
@@ -336,7 +328,6 @@ class _FlowingBackgroundState extends State<FlowingBackground>
                   ),
                 ),
               ),
-              // Green blob — top-left
               Positioned(
                 top: -180 + 120 * t1,
                 left: -180 + 100 * t1,
@@ -345,7 +336,6 @@ class _FlowingBackgroundState extends State<FlowingBackground>
                   color: kGreen.withValues(alpha: isDark ? 0.35 : 0.14),
                 ),
               ),
-              // Red blob — bottom-right
               Positioned(
                 bottom: -220 + 100 * t2,
                 right: -180 + 140 * t2,
@@ -354,7 +344,6 @@ class _FlowingBackgroundState extends State<FlowingBackground>
                   color: kRed.withValues(alpha: isDark ? 0.22 : 0.09),
                 ),
               ),
-              // Bright green — middle drift
               Positioned(
                 top: 280 + 100 * t3,
                 right: -160 + 60 * t3,
@@ -364,7 +353,6 @@ class _FlowingBackgroundState extends State<FlowingBackground>
                       .withValues(alpha: isDark ? 0.18 : 0.08),
                 ),
               ),
-              // Soft mint — bottom-left
               Positioned(
                 bottom: 100 + 80 * t1,
                 left: -120 + 60 * t3,
@@ -432,6 +420,46 @@ void main() async {
 }
 
 // =============================================================================
+// PAGE TRANSITION — Material 3 Fade Through
+// =============================================================================
+
+class _FadeThroughPageTransitionsBuilder extends PageTransitionsBuilder {
+  const _FadeThroughPageTransitionsBuilder();
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    final exit = CurvedAnimation(
+      parent: secondaryAnimation,
+      curve: const Interval(0.0, 0.35, curve: Curves.easeInCubic),
+      reverseCurve: Curves.easeOutCubic,
+    );
+
+    final enter = CurvedAnimation(
+      parent: animation,
+      curve: const Interval(0.35, 1.0, curve: Curves.easeOutCubic),
+      reverseCurve: Curves.easeInCubic,
+    );
+
+    return FadeTransition(
+      opacity: enter,
+      child: ScaleTransition(
+        scale: Tween<double>(begin: 0.96, end: 1.0).animate(enter),
+        child: FadeTransition(
+          opacity: Tween<double>(begin: 1.0, end: 0.0).animate(exit),
+          child: child,
+        ),
+      ),
+    );
+  }
+}
+
+// =============================================================================
 // ROOT APP + THEME
 // =============================================================================
 
@@ -440,7 +468,6 @@ class MainApp extends StatelessWidget {
 
   static final ThemeData _lightTheme = _buildTheme(isDark: false);
   static final ThemeData _darkTheme = _buildTheme(isDark: true);
-  static final ThemeData _baseTheme = ThemeData(useMaterial3: true);
 
   static ThemeData _buildTheme({required bool isDark}) {
     final scheme = ColorScheme.fromSeed(
@@ -525,6 +552,16 @@ class MainApp extends StatelessWidget {
       dividerTheme:
           const DividerThemeData(color: Colors.transparent, thickness: 0),
 
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: _FadeThroughPageTransitionsBuilder(),
+          TargetPlatform.iOS: _FadeThroughPageTransitionsBuilder(),
+          TargetPlatform.macOS: _FadeThroughPageTransitionsBuilder(),
+          TargetPlatform.windows: _FadeThroughPageTransitionsBuilder(),
+          TargetPlatform.linux: _FadeThroughPageTransitionsBuilder(),
+        },
+      ),
+
       elevatedButtonTheme: ElevatedButtonThemeData(
         style: ElevatedButton.styleFrom(
           backgroundColor: isDark ? kGreenBright : kGreen,
@@ -581,33 +618,34 @@ class MainApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      theme: _baseTheme,
-      builder: (context, child) {
-        return ValueListenableBuilder<bool>(
-          valueListenable: darkModeNotifier,
-          builder: (context, isDark, _) {
-            final theme = isDark ? _darkTheme : _lightTheme;
-            return Theme(
-              data: theme,
-              child: ScaffoldMessenger(
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    FlowingBackground(isDark: isDark),
-                    Material(
-                      type: MaterialType.transparency,
-                      child: child ?? const SizedBox.shrink(),
-                    ),
-                  ],
-                ),
+    return ValueListenableBuilder<bool>(
+      valueListenable: darkModeNotifier,
+      builder: (context, isDark, _) {
+        return MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: _lightTheme,
+          darkTheme: _darkTheme,
+          themeMode: isDark ? ThemeMode.dark : ThemeMode.light,
+          builder: (context, child) {
+            return ScaffoldMessenger(
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  FlowingBackground(isDark: isDark),
+                  Material(
+                    type: MaterialType.transparency,
+                    color: Colors.transparent,
+                    surfaceTintColor: Colors.transparent,
+                    shadowColor: Colors.transparent,
+                    child: child ?? const SizedBox.shrink(),
+                  ),
+                ],
               ),
             );
           },
+          home: const AuthWrapper(),
         );
       },
-      home: const AuthWrapper(),
     );
   }
 }
@@ -672,7 +710,7 @@ class _AuthWrapperState extends State<AuthWrapper> {
     }
     return ValueListenableBuilder<bool>(
       valueListenable: authNotifier,
-      builder: (_, __, ___) =>
+      builder: (_, _, _) =>
           authNotifier.value ? const HomeShell() : const LoginPage(),
     );
   }
@@ -740,11 +778,10 @@ class _LoginPageState extends State<LoginPage> {
             padding: const EdgeInsets.symmetric(horizontal: 30),
             child: Column(
               children: [
-                GlassContainer(
+                SurfaceCard(
                   width: 90,
                   height: 90,
                   borderRadius: BorderRadius.circular(28),
-                  blur: 24,
                   child: Icon(
                     Icons.account_balance,
                     color: Theme.of(context).colorScheme.primary,
@@ -842,9 +879,8 @@ class _LoginField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GlassContainer(
+    return SurfaceCard(
       borderRadius: BorderRadius.circular(20),
-      blur: 20,
       child: Row(
         children: [
           Padding(
@@ -904,20 +940,20 @@ class _HomeShellState extends State<HomeShell> {
     required VoidCallback onTap,
     Color? colorOverride,
   }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
-      child: SizedBox(
-        width: 64,
-        height: 56,
-        child: Center(
-          child: Icon(
-            icon,
-            size: 26,
-            color: colorOverride ??
-                (active
-                    ? Theme.of(context).colorScheme.primary
-                    : Theme.of(context).colorScheme.onSurfaceVariant),
+    return Expanded(
+      child: InkWell(
+        onTap: onTap,
+        child: SizedBox(
+          height: 64,
+          child: Center(
+            child: Icon(
+              icon,
+              size: 26,
+              color: colorOverride ??
+                  (active
+                      ? Theme.of(context).colorScheme.primary
+                      : Theme.of(context).colorScheme.onSurfaceVariant),
+            ),
           ),
         ),
       ),
@@ -926,48 +962,51 @@ class _HomeShellState extends State<HomeShell> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    
     return Scaffold(
-      extendBody: true,
       body: IndexedStack(index: _index, children: _pages),
-      bottomNavigationBar: Padding(
-        padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
-        child: GlassContainer(
-          height: 68,
-          borderRadius: BorderRadius.circular(34),
-          blur: 30,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.18),
-              blurRadius: 30,
-              offset: const Offset(0, 12),
-            ),
-          ],
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-            children: [
-              _navItem(
-                icon: _index == 0 ? Icons.home : Icons.home_outlined,
-                active: _index == 0,
-                onTap: () => setState(() => _index = 0),
+      bottomNavigationBar: Material(
+        color: Theme.of(context).colorScheme.surface,
+        child: Container(
+          decoration: BoxDecoration(
+            border: Border(
+              top: BorderSide(
+                color: isDark
+                    ? Colors.white.withValues(alpha: 0.06)
+                    : Colors.black.withValues(alpha: 0.05),
+                width: 1,
               ),
-              _navItem(
-                icon: Icons.qr_code_scanner,
-                active: false,
-                colorOverride: kRed,
-                onTap: () => Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) =>
-                        const QrScannerPage(returnToAmount: true),
+            ),
+          ),
+          child: SafeArea(
+            top: false,
+            child: Row(
+              children: [
+                _navItem(
+                  icon: _index == 0 ? Icons.home : Icons.home_outlined,
+                  active: _index == 0,
+                  onTap: () => setState(() => _index = 0),
+                ),
+                _navItem(
+                  icon: Icons.qr_code_scanner,
+                  active: false,
+                  colorOverride: kRed,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          const QrScannerPage(returnToAmount: true),
+                    ),
                   ),
                 ),
-              ),
-              _navItem(
-                icon: _index == 1 ? Icons.person : Icons.person_outline,
-                active: _index == 1,
-                onTap: () => setState(() => _index = 1),
-              ),
-            ],
+                _navItem(
+                  icon: _index == 1 ? Icons.person : Icons.person_outline,
+                  active: _index == 1,
+                  onTap: () => setState(() => _index = 1),
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -991,7 +1030,8 @@ class _HomePageState extends State<HomePage> {
     return Scaffold(
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(20, 10, 20, 120),
+          // Bottom padding reduced since standard navbar doesn't float
+          padding: const EdgeInsets.fromLTRB(20, 10, 20, 24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
@@ -1091,8 +1131,6 @@ class _HomePageState extends State<HomePage> {
           ValueListenableBuilder<double>(
             valueListenable: balanceNotifier,
             builder: (context, balance, _) => TweenAnimationBuilder<double>(
-              // begin:null → TweenAnimationBuilder remembers the previous
-              // value internally and animates from it to the new end.
               tween: Tween<double>(end: balance),
               duration: const Duration(milliseconds: 900),
               curve: Curves.easeOutCubic,
@@ -1167,7 +1205,7 @@ class _HomePageState extends State<HomePage> {
           valueListenable: transactionsNotifier,
           builder: (context, txs, _) {
             if (txs.isEmpty) {
-              return GlassContainer(
+              return SurfaceCard(
                 borderRadius: BorderRadius.circular(22),
                 padding: const EdgeInsets.symmetric(vertical: 36),
                 child: Center(
@@ -1185,12 +1223,11 @@ class _HomePageState extends State<HomePage> {
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
               itemCount: txs.take(5).length,
-              separatorBuilder: (_, __) => const SizedBox(height: 12),
+              separatorBuilder: (_, _) => const SizedBox(height: 12),
               itemBuilder: (context, i) {
                 final tx = txs[i];
-                return GlassContainer(
+                return SurfaceCard(
                   borderRadius: BorderRadius.circular(20),
-                  blur: 18,
                   padding: const EdgeInsets.all(14),
                   child: Row(
                     children: [
@@ -1267,10 +1304,9 @@ class _HomePageState extends State<HomePage> {
       builder: (ctx) => Padding(
         padding:
             EdgeInsets.only(bottom: MediaQuery.of(ctx).viewInsets.bottom),
-        child: GlassContainer(
+        child: SurfaceCard(
           margin: const EdgeInsets.all(16),
           borderRadius: BorderRadius.circular(32),
-          blur: 36,
           padding: const EdgeInsets.all(24),
           child: Column(
             mainAxisSize: MainAxisSize.min,
@@ -1397,9 +1433,8 @@ class _ActionButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    return GlassContainer(
+    return SurfaceCard(
       borderRadius: BorderRadius.circular(22),
-      blur: 20,
       onTap: onTap,
       padding: const EdgeInsets.symmetric(vertical: 20),
       child: Column(
@@ -1608,7 +1643,7 @@ class _ProfilePageState extends State<ProfilePage> {
       body: ValueListenableBuilder<UserState>(
         valueListenable: userNotifier,
         builder: (context, user, _) => ListView(
-          padding: const EdgeInsets.fromLTRB(24, 24, 24, 120),
+          padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
           children: [
             Center(
               child: GestureDetector(
@@ -1661,9 +1696,8 @@ class _ProfilePageState extends State<ProfilePage> {
             const SizedBox(height: 32),
 
             _sectionLabel(context, 'Account'),
-            GlassContainer(
+            SurfaceCard(
               borderRadius: BorderRadius.circular(20),
-              blur: 20,
               padding: const EdgeInsets.symmetric(vertical: 8),
               child: Column(
                 children: [
@@ -1685,9 +1719,8 @@ class _ProfilePageState extends State<ProfilePage> {
             const SizedBox(height: 24),
 
             _sectionLabel(context, 'Preferences'),
-            GlassContainer(
+            SurfaceCard(
               borderRadius: BorderRadius.circular(20),
-              blur: 20,
               padding: const EdgeInsets.symmetric(vertical: 8),
               child: Column(
                 children: [
@@ -1723,9 +1756,8 @@ class _ProfilePageState extends State<ProfilePage> {
             const SizedBox(height: 24),
 
             _sectionLabel(context, 'Support'),
-            GlassContainer(
+            SurfaceCard(
               borderRadius: BorderRadius.circular(20),
-              blur: 20,
               padding: const EdgeInsets.symmetric(vertical: 8),
               child: ListTile(
                 leading: const Icon(Icons.help_outline),
@@ -1741,9 +1773,8 @@ class _ProfilePageState extends State<ProfilePage> {
             ),
             const SizedBox(height: 24),
 
-            GlassContainer(
+            SurfaceCard(
               borderRadius: BorderRadius.circular(20),
-              blur: 20,
               padding: const EdgeInsets.symmetric(vertical: 8),
               child: ListTile(
                 leading: Icon(
@@ -1846,10 +1877,9 @@ class _HelpSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GlassContainer(
+    return SurfaceCard(
       margin: const EdgeInsets.only(bottom: 16),
       borderRadius: BorderRadius.circular(18),
-      blur: 18,
       child: Theme(
         data: Theme.of(context)
             .copyWith(dividerColor: Colors.transparent),
@@ -1967,9 +1997,8 @@ class _RecipientSelectionPageState
                 ),
               ),
               const SizedBox(height: 24),
-              GlassContainer(
+              SurfaceCard(
                 borderRadius: BorderRadius.circular(20),
-                blur: 20,
                 child: TextField(
                   controller: _codeController,
                   style: TextStyle(
@@ -2020,13 +2049,12 @@ class _RecipientSelectionPageState
                 shrinkWrap: true,
                 physics: const NeverScrollableScrollPhysics(),
                 itemCount: _recentRecipients.length,
-                separatorBuilder: (_, __) =>
+                separatorBuilder: (_, _) =>
                     const SizedBox(height: 12),
                 itemBuilder: (context, i) {
                   final r = _recentRecipients[i];
-                  return GlassContainer(
+                  return SurfaceCard(
                     borderRadius: BorderRadius.circular(18),
-                    blur: 18,
                     padding: const EdgeInsets.all(16),
                     onTap: () => _proceedToAmount(
                       r['code'] as String,
@@ -2151,6 +2179,7 @@ class _AmountPageState extends State<AmountPage> {
     bool authorized = false;
     if (userNotifier.value.isBiometricEnabled) {
       authorized = await _authenticateBiometrics();
+      if (!mounted) return;
       if (!authorized) {
         authorized = await _showPasswordDialog(context);
       }
@@ -2193,9 +2222,8 @@ class _AmountPageState extends State<AmountPage> {
         children: [
           Padding(
             padding: const EdgeInsets.all(20),
-            child: GlassContainer(
+            child: SurfaceCard(
               borderRadius: BorderRadius.circular(20),
-              blur: 20,
               padding: const EdgeInsets.all(16),
               child: Row(
                 children: [
@@ -2574,6 +2602,7 @@ class _UpgradePageState extends State<UpgradePage> {
     bool authorized = false;
     if (userNotifier.value.isBiometricEnabled) {
       authorized = await _authenticateBiometrics();
+      if (!mounted) return;
       if (!authorized) {
         authorized = await _showPasswordDialog(context);
       }
@@ -2730,9 +2759,8 @@ class _UpgradePageState extends State<UpgradePage> {
   }
 
   Widget _buildFeatures() {
-    return GlassContainer(
+    return SurfaceCard(
       borderRadius: BorderRadius.circular(20),
-      blur: 20,
       padding: const EdgeInsets.all(20),
       child: Column(
         children: const [
@@ -2798,7 +2826,7 @@ class SubscriptionPage extends StatelessWidget {
       body: ListView.separated(
         padding: const EdgeInsets.all(24),
         itemCount: availableSubs.length,
-        separatorBuilder: (_, __) => const SizedBox(height: 16),
+        separatorBuilder: (_, _) => const SizedBox(height: 16),
         itemBuilder: (context, i) =>
             _buildSubCard(context, availableSubs[i]),
       ),
@@ -2853,9 +2881,8 @@ class SubscriptionPage extends StatelessWidget {
 
   Widget _buildSubItem(BuildContext context, SubModel sub) {
     final isPro = sub.name == 'Synapse Pro';
-    return GlassContainer(
+    return SurfaceCard(
       borderRadius: BorderRadius.circular(20),
-      blur: 18,
       padding: const EdgeInsets.all(20),
       onTap: () => Navigator.push(
         context,
@@ -3036,9 +3063,8 @@ class SubscriptionBenefitsPage extends StatelessWidget {
   }
 
   Widget _buildBenefits(BuildContext context) {
-    return GlassContainer(
+    return SurfaceCard(
       borderRadius: BorderRadius.circular(20),
-      blur: 20,
       padding: const EdgeInsets.all(20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -3120,6 +3146,7 @@ class _SubscriptionCheckoutPageState
     bool authorized = false;
     if (userNotifier.value.isBiometricEnabled) {
       authorized = await _authenticateBiometrics();
+      if (!mounted) return;
       if (!authorized) {
         authorized = await _showPasswordDialog(context);
       }
@@ -3231,9 +3258,8 @@ class _SubscriptionCheckoutPageState
   }
 
   Widget _buildAccountField(BuildContext context) {
-    return GlassContainer(
+    return SurfaceCard(
       borderRadius: BorderRadius.circular(20),
-      blur: 20,
       child: Row(
         children: [
           Padding(
@@ -3271,9 +3297,8 @@ class _SubscriptionCheckoutPageState
   }
 
   Widget _buildSummary(BuildContext context) {
-    return GlassContainer(
+    return SurfaceCard(
       borderRadius: BorderRadius.circular(20),
-      blur: 20,
       padding: const EdgeInsets.all(20),
       child: Column(
         children: [
@@ -3540,9 +3565,8 @@ class SuccessPage extends StatelessWidget {
   }
 
   Widget _buildDetails(BuildContext context, DateTime now) {
-    return GlassContainer(
+    return SurfaceCard(
       borderRadius: BorderRadius.circular(22),
-      blur: 20,
       padding: const EdgeInsets.all(20),
       child: Column(
         children: [
@@ -3668,6 +3692,7 @@ class _BillPaymentPageState extends State<BillPaymentPage> {
     bool authorized = false;
     if (userNotifier.value.isBiometricEnabled) {
       authorized = await _authenticateBiometrics();
+      if (!mounted) return;
       if (!authorized) {
         authorized = await _showPasswordDialog(context);
       }
@@ -3745,9 +3770,8 @@ class _BillPaymentPageState extends State<BillPaymentPage> {
           ),
         ),
         const SizedBox(height: 40),
-        GlassContainer(
+        SurfaceCard(
           borderRadius: BorderRadius.circular(20),
-          blur: 20,
           child: Row(
             children: [
               Padding(
@@ -3867,9 +3891,8 @@ class _BillPaymentPageState extends State<BillPaymentPage> {
           ),
         ),
         const SizedBox(height: 30),
-        GlassContainer(
+        SurfaceCard(
           borderRadius: BorderRadius.circular(20),
-          blur: 20,
           padding: const EdgeInsets.all(20),
           child: Column(
             children: [
@@ -4044,6 +4067,7 @@ class _EducationPaymentPageState extends State<EducationPaymentPage> {
     bool authorized = false;
     if (userNotifier.value.isBiometricEnabled) {
       authorized = await _authenticateBiometrics();
+      if (!mounted) return;
       if (!authorized) {
         authorized = await _showPasswordDialog(context);
       }
@@ -4124,9 +4148,8 @@ class _EducationPaymentPageState extends State<EducationPaymentPage> {
           ),
         ),
         const SizedBox(height: 40),
-        GlassContainer(
+        SurfaceCard(
           borderRadius: BorderRadius.circular(20),
-          blur: 20,
           child: Row(
             children: [
               Padding(
@@ -4224,9 +4247,8 @@ class _EducationPaymentPageState extends State<EducationPaymentPage> {
           ),
         ),
         const SizedBox(height: 30),
-        GlassContainer(
+        SurfaceCard(
           borderRadius: BorderRadius.circular(20),
-          blur: 20,
           padding: const EdgeInsets.all(20),
           child: Column(
             children: [
@@ -4251,9 +4273,8 @@ class _EducationPaymentPageState extends State<EducationPaymentPage> {
           ),
         ),
         const SizedBox(height: 10),
-        GlassContainer(
+        SurfaceCard(
           borderRadius: BorderRadius.circular(20),
-          blur: 20,
           child: Row(
             children: [
               const Padding(
@@ -4364,24 +4385,19 @@ class _EducationPaymentPageState extends State<EducationPaymentPage> {
 // SHARED WIDGETS
 // =============================================================================
 
-/// Frosted glass container with `BackdropFilter` blur.
-///
-/// Two-stop gradient (lighter top-left → darker bottom-right) plus a
-/// crisp white border reproduces the specular edge of real glass.
-class GlassContainer extends StatelessWidget {
+class SurfaceCard extends StatelessWidget {
   final Widget child;
   final double? width;
   final double? height;
   final EdgeInsetsGeometry? padding;
   final EdgeInsetsGeometry? margin;
   final BorderRadius borderRadius;
-  final double blur;
   final Color? color;
   final Color? borderColor;
   final VoidCallback? onTap;
   final List<BoxShadow>? boxShadow;
 
-  const GlassContainer({
+  const SurfaceCard({
     super.key,
     required this.child,
     this.width,
@@ -4389,7 +4405,6 @@ class GlassContainer extends StatelessWidget {
     this.padding,
     this.margin,
     this.borderRadius = const BorderRadius.all(Radius.circular(22)),
-    this.blur = 24.0,
     this.color,
     this.borderColor,
     this.onTap,
@@ -4400,25 +4415,22 @@ class GlassContainer extends StatelessWidget {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
-    final tintTop = color ??
+    final surface = color ??
         (isDark
-            ? Colors.white.withValues(alpha: 0.11)
-            : Colors.white.withValues(alpha: 0.72));
-    final tintBottom = color ??
-        (isDark
-            ? Colors.white.withValues(alpha: 0.04)
-            : Colors.white.withValues(alpha: 0.34));
+            ? kInkSoft.withValues(alpha: 0.94)
+            : Colors.white.withValues(alpha: 0.94));
+
     final border = borderColor ??
         (isDark
-            ? Colors.white.withValues(alpha: 0.16)
-            : Colors.white.withValues(alpha: 0.90));
+            ? Colors.white.withValues(alpha: 0.06)
+            : Colors.black.withValues(alpha: 0.05));
 
     final shadows = boxShadow ??
         [
           BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.28 : 0.06),
-            blurRadius: 28,
-            offset: const Offset(0, 10),
+            color: Colors.black.withValues(alpha: isDark ? 0.30 : 0.05),
+            blurRadius: 22,
+            offset: const Offset(0, 6),
           ),
         ];
 
@@ -4427,13 +4439,9 @@ class GlassContainer extends StatelessWidget {
       height: height,
       padding: padding,
       decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [tintTop, tintBottom],
-        ),
+        color: surface,
         borderRadius: borderRadius,
-        border: Border.all(color: border, width: 1.0),
+        border: Border.all(color: border, width: 1),
         boxShadow: shadows,
       ),
       child: child,
@@ -4445,8 +4453,8 @@ class GlassContainer extends StatelessWidget {
         child: InkWell(
           onTap: onTap,
           borderRadius: borderRadius,
-          splashColor: kGreen.withValues(alpha: 0.15),
-          highlightColor: kGreen.withValues(alpha: 0.06),
+          splashColor: kGreen.withValues(alpha: 0.08),
+          highlightColor: kGreen.withValues(alpha: 0.03),
           child: content,
         ),
       );
@@ -4454,13 +4462,7 @@ class GlassContainer extends StatelessWidget {
 
     return Container(
       margin: margin,
-      child: ClipRRect(
-        borderRadius: borderRadius,
-        child: BackdropFilter(
-          filter: ui.ImageFilter.blur(sigmaX: blur, sigmaY: blur),
-          child: content,
-        ),
-      ),
+      child: content,
     );
   }
 }
