@@ -15,8 +15,7 @@ import synapse.common.CommonHttpAutoConfiguration;
 @ImportAutoConfiguration(CommonHttpAutoConfiguration.class)
 class DemoControllerTest {
 
-  @Autowired
-  private MockMvc mvc;
+  @Autowired private MockMvc mvc;
 
   @Test
   void wrapsAFoundAccount() throws Exception {

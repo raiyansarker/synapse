@@ -34,9 +34,7 @@ class SampleController {
   @GetMapping("/envelope")
   ApiResponse<Item> alreadyWrapped() {
     return ApiResponse.ok(
-        new Item("wrapped"),
-        ApiMeta.builder().requestId("fixed").timestamp(Instant.EPOCH).build()
-    );
+        new Item("wrapped"), ApiMeta.builder().requestId("fixed").timestamp(Instant.EPOCH).build());
   }
 
   record Item(String id) {}

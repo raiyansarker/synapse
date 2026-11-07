@@ -1,6 +1,6 @@
 # upi
 
-Spring Boot service. PostgreSQL settings live in `src/main/resources/application.yaml` and are filled from environment variables.
+Spring Boot service. PostgreSQL and RabbitMQ settings live in `src/main/resources/application.yaml` and are filled from environment variables.
 
 Requires Java 25.
 
@@ -19,6 +19,7 @@ cp .env.example .env
 | `SPRING_DATASOURCE_URL` | JDBC URL, including the database name |
 | `SPRING_DATASOURCE_USERNAME` | Database user |
 | `SPRING_DATASOURCE_PASSWORD` | Database password |
+| `SPRING_RABBITMQ_ADDRESSES` | RabbitMQ URI (`amqp://` or `amqps://`). Path is the virtual host. |
 
 `application.yaml` references those names directly:
 
@@ -28,9 +29,11 @@ spring:
     url: ${SPRING_DATASOURCE_URL}
     username: ${SPRING_DATASOURCE_USERNAME}
     password: ${SPRING_DATASOURCE_PASSWORD}
+  rabbitmq:
+    addresses: ${SPRING_RABBITMQ_ADDRESSES}
 ```
 
-Hibernate uses `ddl-auto: update`, so the schema is updated from entities on startup.
+Hibernate uses `ddl-auto: update`, so the schema is updated from entities on startup. Spring AMQP auto-configures `RabbitTemplate`, `AmqpAdmin`, and `@RabbitListener` support from `spring-boot-starter-amqp`.
 
 ### Local Postgres
 
@@ -43,6 +46,16 @@ SPRING_DATASOURCE_PASSWORD=postgres
 ```
 
 Create that database before starting the app. Drop `sslmode=require` if the local server does not use TLS.
+
+### RabbitMQ
+
+`.env.example` targets a local broker:
+
+```
+SPRING_RABBITMQ_ADDRESSES=amqp://guest:guest@localhost:5672/
+```
+
+CloudAMQP (and similar) give one URI. Put that in `.env` as `SPRING_RABBITMQ_ADDRESSES`. Use `amqps://` for TLS. The path after the host is the virtual host. Connection details alone do not declare exchanges or queues.
 
 ### Neon
 
@@ -67,7 +80,3 @@ From this directory:
 The app listens on port 8080. Set `SERVER_PORT` to use another port.
 
 Running from an IDE does not load `.env`. Export the same three variables in the run configuration, or start the app with `./gradlew bootRun`.
-
-## Payment flow
-
-The switch tracks each payment with Spring Statemachine. DBOS runs the steps and waits for the banks. It stores its checkpoints in the `dbos` schema of the same Postgres database. States, transitions, and the workflow are in [docs/payment-state-machine.md](docs/payment-state-machine.md).

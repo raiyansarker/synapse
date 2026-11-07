@@ -27,18 +27,23 @@ public class HttpExceptionHandler {
   @ExceptionHandler(Exception.class)
   public ResponseEntity<ApiResponse<Void>> handle(Exception exception) {
     if (exception instanceof HttpError httpError) {
-      return build(httpError.getStatus(), httpError.getTitle(), httpError.getDetail(), httpError.getReasons());
+      return build(
+          httpError.getStatus(),
+          httpError.getTitle(),
+          httpError.getDetail(),
+          httpError.getReasons());
     }
 
     if (exception instanceof MethodArgumentNotValidException validationException) {
-      List<Map<String, String>> reasons = validationException.getBindingResult()
-          .getFieldErrors()
-          .stream()
-          .map(error -> Map.of(
-              "field", error.getField(),
-              "message", error.getDefaultMessage() == null ? "invalid" : error.getDefaultMessage()
-          ))
-          .toList();
+      List<Map<String, String>> reasons =
+          validationException.getBindingResult().getFieldErrors().stream()
+              .map(error ->
+                  Map.of(
+                      "field",
+                      error.getField(),
+                      "message",
+                      error.getDefaultMessage() == null ? "invalid" : error.getDefaultMessage()))
+              .toList();
       return build(HttpStatus.BAD_REQUEST, "Bad Request", "Validation failed", reasons);
     }
 
@@ -47,8 +52,7 @@ public class HttpExceptionHandler {
           HttpStatus.BAD_REQUEST,
           "Bad Request",
           "Missing required parameter: " + missingParameter.getParameterName(),
-          List.of(Map.of("parameter", missingParameter.getParameterName()))
-      );
+          List.of(Map.of("parameter", missingParameter.getParameterName())));
     }
 
     if (exception instanceof HttpMessageNotReadableException) {
@@ -60,8 +64,7 @@ public class HttpExceptionHandler {
           HttpStatus.METHOD_NOT_ALLOWED,
           "Method Not Allowed",
           methodNotSupported.getMessage(),
-          List.of()
-      );
+          List.of());
     }
 
     if (exception instanceof NoResourceFoundException) {
@@ -73,21 +76,12 @@ public class HttpExceptionHandler {
         HttpStatus.INTERNAL_SERVER_ERROR,
         "Internal Server Error",
         "An unexpected error occurred",
-        List.of()
-    );
+        List.of());
   }
 
   private ResponseEntity<ApiResponse<Void>> build(
-      HttpStatus status,
-      String title,
-      String detail,
-      List<Map<String, String>> reasons
-  ) {
-    ApiError error = ApiError.builder()
-        .title(title)
-        .detail(detail)
-        .reasons(reasons)
-        .build();
+      HttpStatus status, String title, String detail, List<Map<String, String>> reasons) {
+    ApiError error = ApiError.builder().title(title).detail(detail).reasons(reasons).build();
 
     return ResponseEntity.status(status).body(ApiResponse.fail(error, metaFactory.current()));
   }

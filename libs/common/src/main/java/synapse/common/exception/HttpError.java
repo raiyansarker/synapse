@@ -14,11 +14,7 @@ public abstract class HttpError extends RuntimeException {
   private final List<Map<String, String>> reasons;
 
   protected HttpError(
-      HttpStatus status,
-      String title,
-      String detail,
-      List<Map<String, String>> reasons
-  ) {
+      HttpStatus status, String title, String detail, List<Map<String, String>> reasons) {
     super(detail);
     this.status = status;
     this.title = title;
@@ -31,8 +27,7 @@ public abstract class HttpError extends RuntimeException {
       String title,
       String detail,
       List<Map<String, String>> reasons,
-      Throwable cause
-  ) {
+      Throwable cause) {
     super(detail, cause);
     this.status = status;
     this.title = title;

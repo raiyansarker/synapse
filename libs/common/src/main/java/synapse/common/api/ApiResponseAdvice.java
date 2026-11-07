@@ -16,7 +16,8 @@ public class ApiResponseAdvice implements ResponseBodyAdvice<Object> {
   private final ApiMetaFactory metaFactory;
 
   @Override
-  public boolean supports(MethodParameter returnType, Class<? extends HttpMessageConverter<?>> converterType) {
+  public boolean supports(
+      MethodParameter returnType, Class<? extends HttpMessageConverter<?>> converterType) {
     return true;
   }
 
@@ -27,8 +28,7 @@ public class ApiResponseAdvice implements ResponseBodyAdvice<Object> {
       MediaType selectedContentType,
       Class<? extends HttpMessageConverter<?>> selectedConverterType,
       ServerHttpRequest request,
-      ServerHttpResponse response
-  ) {
+      ServerHttpResponse response) {
     if (body instanceof ApiResponse<?> || body instanceof byte[]) {
       return body;
     }
