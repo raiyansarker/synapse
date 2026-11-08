@@ -1,7 +1,7 @@
 package synapse.upi.pay.ack.interfaces;
 
 /**
- * Business outcome of notifying banks that settlement succeeded.
+ * Business outcome of notifying the sender's bank that settlement succeeded.
  *
  * <p>Transient failures must be thrown so {@code @RetryQueue} can retry.
  */
