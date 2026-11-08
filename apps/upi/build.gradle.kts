@@ -50,7 +50,15 @@ tasks.named<org.springframework.boot.gradle.tasks.run.BootRun>("bootRun") {
             .filter { it.isNotEmpty() && !it.startsWith("#") && it.contains("=") }
             .forEach { line ->
                 val index = line.indexOf('=')
-                environment(line.substring(0, index), line.substring(index + 1))
+                val key = line.substring(0, index)
+                var value = line.substring(index + 1)
+                if (value.length >= 2 &&
+                    ((value.startsWith('"') && value.endsWith('"')) ||
+                        (value.startsWith('\'') && value.endsWith('\'')))
+                ) {
+                    value = value.substring(1, value.length - 1)
+                }
+                environment(key, value)
             }
     }
 }
