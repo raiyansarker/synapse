@@ -9,7 +9,7 @@ import synapse.upi.ledger.PaymentState;
 
 /**
  * Class-level annotation for consumers that enables automatic native delivery delay retries
- * and dead-letter queue routing.
+ * and dead-letter / follow-up queue routing.
  */
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
