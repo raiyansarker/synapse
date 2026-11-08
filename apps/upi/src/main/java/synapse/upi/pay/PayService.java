@@ -10,8 +10,8 @@ import synapse.upi.ledger.Ledger;
 import synapse.upi.ledger.LedgerRepository;
 import synapse.upi.ledger.PaymentState;
 import synapse.upi.pay.dto.AcceptPayRequest;
-import synapse.upi.pay.queue.AcceptedPay;
-import synapse.upi.pay.queue.PayProducer;
+import synapse.upi.queue.message.PayId;
+import synapse.upi.queue.producer.PayProducer;
 
 @Service
 @RequiredArgsConstructor
@@ -30,14 +30,7 @@ public class PayService {
             )
         );
 
-    producer.publish(
-        new AcceptedPay(
-            transaction.getId(),
-            transaction.getSva(),
-            transaction.getAmount(),
-            transaction.getRva()
-        )
-    );
+    producer.publish(new PayId(transaction.getId()));
 
     return transaction.getId();
   }
