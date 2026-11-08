@@ -11,7 +11,23 @@ import synapse.upi.queue.topology.PayTopology;
 public class PayProducer {
   private final RabbitTemplate rabbit;
 
-  public void publish(PayId payId) {
-    rabbit.convertAndSend(PayTopology.EXCHANGE, PayTopology.DEBIT_AUTHORIZATION_ROUTING_KEY, payId);
+  public void publishDebitAuthorization(PayId payId) {
+    send(PayTopology.DEBIT_AUTHORIZATION_ROUTING_KEY, payId);
+  }
+
+  public void publishCreditAuthorization(PayId payId) {
+    send(PayTopology.CREDIT_AUTHORIZATION_ROUTING_KEY, payId);
+  }
+
+  public void publishAcknowledgment(PayId payId) {
+    send(PayTopology.ACKNOWLEDGMENT_ROUTING_KEY, payId);
+  }
+
+  public void publishReversal(PayId payId) {
+    send(PayTopology.REVERSAL_ROUTING_KEY, payId);
+  }
+
+  private void send(String routingKey, PayId payId) {
+    rabbit.convertAndSend(PayTopology.EXCHANGE, routingKey, payId);
   }
 }
