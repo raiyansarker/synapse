@@ -54,6 +54,16 @@ public enum PaymentState {
     return this == DEBIT_AUTHORIZED || this == CREDIT_AUTHORIZATION_PENDING;
   }
 
+  /** Eligible for the acknowledgment / notify consumer. */
+  public boolean awaitingAcknowledgment() {
+    return this == CREDIT_AUTHORIZED || this == ACKNOWLEDGING;
+  }
+
+  /** Eligible for the reversal consumer. */
+  public boolean awaitingReversal() {
+    return this == REVERSAL_PENDING;
+  }
+
   /**
    * Persist as plain {@code varchar} so Hibernate does not emit an enum {@code CHECK}
    * that {@code ddl-auto: update} fails to refresh.
