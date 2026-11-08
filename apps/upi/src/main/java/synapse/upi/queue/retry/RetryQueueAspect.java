@@ -86,12 +86,16 @@ public class RetryQueueAspect {
         );
       } else {
         PaymentState exhaustedState = retryConfig.exhaustedState();
-        log.error("Retries exhausted ({}/{}) for id={}. Marking {} and routing to dead-letter queue.",
-            attempt, maxAttempts, payId.id(), exhaustedState);
+        String followUpKey = retryConfig.exhaustedRoutingKey();
+        String destination = followUpKey.isBlank()
+            ? PayTopology.DEAD_LETTER_ROUTING_KEY
+            : followUpKey;
+        log.error("Retries exhausted ({}/{}) for id={}. Marking {} and routing to {}.",
+            attempt, maxAttempts, payId.id(), exhaustedState, destination);
         transactionTemplate.executeWithoutResult(status ->
             ledger.findById(payId.id()).ifPresent(entry -> entry.transitionTo(exhaustedState))
         );
-        rabbit.convertAndSend(PayTopology.EXCHANGE, PayTopology.DEAD_LETTER_ROUTING_KEY, payId);
+        rabbit.convertAndSend(PayTopology.EXCHANGE, destination, payId);
       }
       return null;
     } finally {
