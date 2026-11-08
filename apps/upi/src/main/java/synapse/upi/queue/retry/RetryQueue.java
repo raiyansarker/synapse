@@ -21,7 +21,7 @@ public @interface RetryQueue {
   /** Ledger state applied when retries are exhausted. */
   PaymentState exhaustedState();
   /**
-   * Optional follow-up routing key after exhaustion (e.g. reversal after credit/ack failure).
+   * Optional follow-up routing key after exhaustion (e.g. reversal after credit failure).
    * Empty means dead-letter queue.
    */
   String exhaustedRoutingKey() default "";
