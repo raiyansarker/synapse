@@ -10,9 +10,9 @@ import jakarta.persistence.Converter;
  * → {@code DEBIT_AUTHORIZATION_PENDING}
  * → {@code DEBIT_AUTHORIZED} | {@code DEBIT_DECLINED} | {@code DEBIT_AUTHORIZATION_FAILED}
  * → {@code CREDIT_AUTHORIZATION_PENDING}
- * → {@code CREDIT_AUTHORIZED} | {@code REVERSAL_PENDING}
+ * → {@code CREDIT_AUTHORIZED} | {@code REVERSAL_PENDING} (credit decline / exhaust)
  * → {@code ACKNOWLEDGING}
- * → {@code COMPLETED} | {@code REVERSAL_PENDING}
+ * → {@code COMPLETED} | {@code REVERSAL_PENDING} (ack fail / exhaust)
  * → {@code REVERSED} | {@code REVERSAL_FAILED}
  */
 public enum PaymentState {
