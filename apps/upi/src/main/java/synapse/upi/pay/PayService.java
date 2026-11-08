@@ -30,7 +30,7 @@ public class PayService {
             )
         );
 
-    producer.publish(new PayId(transaction.getId()));
+    producer.publishDebitAuthorization(new PayId(transaction.getId()));
 
     return transaction.getId();
   }
