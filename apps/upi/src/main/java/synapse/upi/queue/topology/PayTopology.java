@@ -16,6 +16,15 @@ public class PayTopology {
   public static final String DEBIT_AUTHORIZATION_QUEUE       = "pay.debit_authorization";
   public static final String DEBIT_AUTHORIZATION_ROUTING_KEY = "pay.debit_authorization";
 
+  public static final String CREDIT_AUTHORIZATION_QUEUE       = "pay.credit_authorization";
+  public static final String CREDIT_AUTHORIZATION_ROUTING_KEY = "pay.credit_authorization";
+
+  public static final String ACKNOWLEDGMENT_QUEUE       = "pay.acknowledgment";
+  public static final String ACKNOWLEDGMENT_ROUTING_KEY = "pay.acknowledgment";
+
+  public static final String REVERSAL_QUEUE       = "pay.reversal";
+  public static final String REVERSAL_ROUTING_KEY = "pay.reversal";
+
   public static final String DEAD_LETTER_QUEUE       = "pay.dead";
   public static final String DEAD_LETTER_ROUTING_KEY = "pay.dead";
 
