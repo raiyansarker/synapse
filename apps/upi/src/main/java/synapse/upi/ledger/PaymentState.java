@@ -25,7 +25,6 @@ public enum PaymentState {
 
   CREDIT_AUTHORIZATION_PENDING(false),
   CREDIT_AUTHORIZED(false),
-  CREDIT_AUTHORIZATION_FAILED(true),
 
   ACKNOWLEDGING(false),
   COMPLETED(true),

@@ -47,7 +47,6 @@ class PaymentStateTest {
       names = {
           "DEBIT_DECLINED",
           "DEBIT_AUTHORIZATION_FAILED",
-          "CREDIT_AUTHORIZATION_FAILED",
           "COMPLETED",
           "REVERSED",
           "REVERSAL_FAILED"
