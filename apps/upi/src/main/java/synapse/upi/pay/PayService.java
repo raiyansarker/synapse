@@ -5,10 +5,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import synapse.upi.ledger.Ledger;
 import synapse.upi.ledger.LedgerRepository;
+import synapse.upi.ledger.PaymentState;
 import synapse.upi.pay.dto.AcceptPayRequest;
 import synapse.upi.pay.dto.AcceptPayResponse;
 import synapse.upi.pay.queue.AcceptedPay;
 import synapse.upi.pay.queue.PayProducer;
+
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -37,5 +40,9 @@ public class PayService {
     );
 
     return transaction.getId();
+  }
+
+  public Optional<PaymentState> getPayState(String id) {
+    return ledger.findById(id).map(Ledger::getState);
   }
 }
