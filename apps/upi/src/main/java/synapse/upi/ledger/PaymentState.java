@@ -1,5 +1,8 @@
 package synapse.upi.ledger;
 
+import jakarta.persistence.AttributeConverter;
+import jakarta.persistence.Converter;
+
 /**
  * Where a payment sits on the switch. Terminal states end the lifecycle.
  *
@@ -49,5 +52,22 @@ public enum PaymentState {
   /** Eligible for the credit-authorization consumer. */
   public boolean awaitingCreditAuthorization() {
     return this == DEBIT_AUTHORIZED || this == CREDIT_AUTHORIZATION_PENDING;
+  }
+
+  /**
+   * Persist as plain {@code varchar} so Hibernate does not emit an enum {@code CHECK}
+   * that {@code ddl-auto: update} fails to refresh.
+   */
+  @Converter(autoApply = true)
+  static class AsString implements AttributeConverter<PaymentState, String> {
+    @Override
+    public String convertToDatabaseColumn(PaymentState state) {
+      return state == null ? null : state.name();
+    }
+
+    @Override
+    public PaymentState convertToEntityAttribute(String value) {
+      return value == null ? null : PaymentState.valueOf(value);
+    }
   }
 }
