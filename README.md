@@ -74,7 +74,7 @@ Virtual addresses look like `name@bank`. The part after `@` is the bank handle.
 2. The switch resolves both addresses. A handle it cannot resolve ends the payment before any money moves.
 3. The payer's bank authorizes the debit.
 4. The payee's bank credits the payee. A rejected credit is reversed at the payer's bank.
-5. On success, the switch tells both banks, then the payment is complete.
+5. The switch tells the payer's bank. The payment is already complete; a failed notify does not undo it.
 
 ## Shared HTTP shape
 
