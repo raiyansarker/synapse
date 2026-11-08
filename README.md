@@ -66,13 +66,15 @@ The app is a wallet UI: login gate, balance, send and receive, QR, on-device bio
 
 ## A payment
 
+![UPI switch transaction flow](apps/upi/docs/workflow.png)
+
 Virtual addresses look like `name@bank`. The part after `@` is the bank handle.
 
 1. A bank publishes a payment. The switch accepts it and returns an atomic id.
 2. The switch resolves both addresses. A handle it cannot resolve ends the payment before any money moves.
 3. The payer's bank authorizes the debit.
 4. The payee's bank credits the payee. A rejected credit is reversed at the payer's bank.
-5. On success, the switch tells both banks, then the payment is complete.
+5. The switch tells the payer's bank. The payment is already complete; a failed notify does not undo it.
 
 ## Shared HTTP shape
 

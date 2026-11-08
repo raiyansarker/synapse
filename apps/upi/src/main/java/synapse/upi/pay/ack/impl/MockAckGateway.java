@@ -22,15 +22,15 @@ public class MockAckGateway implements AckGateway {
     outcomes.pause();
     return switch (outcomes.getAck()) {
       case APPROVE -> {
-        log.info("[MOCK] Ack succeeded id={}", entry.getId());
+        log.info("[MOCK] Ack succeeded id={} sva={}", entry.getId(), entry.getSva());
         yield new AckResult.Succeeded();
       }
       case DECLINE -> {
-        log.info("[MOCK] Ack failed id={}", entry.getId());
+        log.info("[MOCK] Ack failed id={} sva={}", entry.getId(), entry.getSva());
         yield new AckResult.Failed("NOTIFY_REJECTED");
       }
       case TRANSIENT -> throw new RuntimeException(
-          "Simulated ack timeout for id=" + entry.getId());
+          "Simulated ack timeout for sva=" + entry.getSva());
     };
   }
 }

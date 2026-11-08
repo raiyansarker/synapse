@@ -94,10 +94,6 @@ public class Ledger {
     this.state = PaymentState.CREDIT_AUTHORIZED;
   }
 
-  public void markCreditAuthorizationFailed() {
-    this.state = PaymentState.CREDIT_AUTHORIZATION_FAILED;
-  }
-
   public void markAcknowledging() {
     this.state = PaymentState.ACKNOWLEDGING;
   }

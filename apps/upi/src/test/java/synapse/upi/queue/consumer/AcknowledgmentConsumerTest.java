@@ -18,7 +18,6 @@ import synapse.upi.ledger.PaymentState;
 import synapse.upi.pay.ack.interfaces.AckGateway;
 import synapse.upi.pay.ack.interfaces.AckResult;
 import synapse.upi.queue.message.PayId;
-import synapse.upi.queue.producer.PayProducer;
 
 @ExtendWith(MockitoExtension.class)
 class AcknowledgmentConsumerTest {
@@ -29,14 +28,11 @@ class AcknowledgmentConsumerTest {
   @Mock
   private AckGateway ackGateway;
 
-  @Mock
-  private PayProducer producer;
-
   private AcknowledgmentConsumer consumer;
 
   @BeforeEach
   void setUp() {
-    consumer = new AcknowledgmentConsumer(ledgerRepository, ackGateway, producer);
+    consumer = new AcknowledgmentConsumer(ledgerRepository, ackGateway);
   }
 
   @Test
@@ -49,11 +45,10 @@ class AcknowledgmentConsumerTest {
     consumer.consume(payId);
 
     assertEquals(PaymentState.COMPLETED, entry.getState());
-    verify(producer, never()).publishReversal(payId);
   }
 
   @Test
-  void queuesReversalWhenAckFails() {
+  void completesWhenAckFails() {
     Ledger entry = creditAuthorized();
     PayId payId = new PayId(entry.getId());
     when(ledgerRepository.findById(entry.getId())).thenReturn(Optional.of(entry));
@@ -61,8 +56,7 @@ class AcknowledgmentConsumerTest {
 
     consumer.consume(payId);
 
-    assertEquals(PaymentState.REVERSAL_PENDING, entry.getState());
-    verify(producer).publishReversal(payId);
+    assertEquals(PaymentState.COMPLETED, entry.getState());
   }
 
   @Test

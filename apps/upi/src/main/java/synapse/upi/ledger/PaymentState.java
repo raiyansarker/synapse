@@ -12,7 +12,7 @@ import jakarta.persistence.Converter;
  * → {@code CREDIT_AUTHORIZATION_PENDING}
  * → {@code CREDIT_AUTHORIZED} | {@code REVERSAL_PENDING} (credit decline / exhaust)
  * → {@code ACKNOWLEDGING}
- * → {@code COMPLETED} | {@code REVERSAL_PENDING} (ack fail / exhaust)
+ * → {@code COMPLETED} (sender notify success or failure; a failed notify leaves the payment complete)
  * → {@code REVERSED} | {@code REVERSAL_FAILED}
  */
 public enum PaymentState {
@@ -25,7 +25,6 @@ public enum PaymentState {
 
   CREDIT_AUTHORIZATION_PENDING(false),
   CREDIT_AUTHORIZED(false),
-  CREDIT_AUTHORIZATION_FAILED(true),
 
   ACKNOWLEDGING(false),
   COMPLETED(true),

@@ -13,6 +13,6 @@ public class BankAckGateway implements AckGateway {
   @Override
   public AckResult acknowledge(Ledger entry) {
     throw new UnsupportedOperationException(
-        "Bank acknowledgment not yet implemented for id=" + entry.getId());
+        "Bank acknowledgment not yet implemented for sva=" + entry.getSva());
   }
 }
