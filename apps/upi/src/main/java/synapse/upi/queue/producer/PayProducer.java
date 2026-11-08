@@ -3,7 +3,7 @@ package synapse.upi.queue.producer;
 import lombok.RequiredArgsConstructor;
 import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.stereotype.Service;
-import synapse.upi.queue.message.AcceptedPay;
+import synapse.upi.queue.message.PayId;
 import synapse.upi.queue.topology.PayTopology;
 
 @Service
@@ -11,7 +11,7 @@ import synapse.upi.queue.topology.PayTopology;
 public class PayProducer {
   private final RabbitTemplate rabbit;
 
-  public void publish(AcceptedPay pay) {
-    rabbit.convertAndSend(PayTopology.EXCHANGE, PayTopology.DEBIT_AUTHORIZATION_ROUTING_KEY, pay);
+  public void publish(PayId payId) {
+    rabbit.convertAndSend(PayTopology.EXCHANGE, PayTopology.DEBIT_AUTHORIZATION_ROUTING_KEY, payId);
   }
 }

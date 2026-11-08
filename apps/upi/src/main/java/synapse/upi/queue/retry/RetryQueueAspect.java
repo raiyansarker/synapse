@@ -15,7 +15,7 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 import synapse.upi.ledger.LedgerRepository;
 import synapse.upi.ledger.PaymentState;
-import synapse.upi.queue.message.AcceptedPay;
+import synapse.upi.queue.message.PayId;
 import synapse.upi.queue.topology.PayTopology;
 
 @Slf4j
@@ -50,7 +50,7 @@ public class RetryQueueAspect {
     }
 
     Object[] args = joinPoint.getArgs();
-    if (args.length == 0 || !(args[0] instanceof AcceptedPay pay)) {
+    if (args.length == 0 || !(args[0] instanceof PayId payId)) {
       return joinPoint.proceed();
     }
 
@@ -61,7 +61,7 @@ public class RetryQueueAspect {
     String routingKey = retryConfig.routingKey();
 
     log.info("Consumer processing transaction id={} on key={} (attempt {}/{})",
-        pay.id(), routingKey, attempt, maxAttempts);
+        payId.id(), routingKey, attempt, maxAttempts);
 
     try {
       return joinPoint.proceed();
@@ -72,12 +72,12 @@ public class RetryQueueAspect {
       if (attempt < maxAttempts) {
         long deliverAt = System.currentTimeMillis() + delayMillis;
         log.warn("Attempt {} failed for id={}: {}. Retrying via native quorum delay at epoch {}",
-            attempt, pay.id(), ex.getMessage(), deliverAt);
+            attempt, payId.id(), ex.getMessage(), deliverAt);
 
         rabbit.convertAndSend(
             PayTopology.EXCHANGE,
             routingKey,
-            pay,
+            payId,
             message -> {
               message.getMessageProperties().setHeader(RETRY_COUNT_HEADER, attempt + 1);
               message.getMessageProperties().setHeader(DELIVERY_TIME_HEADER, deliverAt);
@@ -87,11 +87,11 @@ public class RetryQueueAspect {
       } else {
         PaymentState exhaustedState = retryConfig.exhaustedState();
         log.error("Retries exhausted ({}/{}) for id={}. Marking {} and routing to dead-letter queue.",
-            attempt, maxAttempts, pay.id(), exhaustedState);
+            attempt, maxAttempts, payId.id(), exhaustedState);
         transactionTemplate.executeWithoutResult(status ->
-            ledger.findById(pay.id()).ifPresent(entry -> entry.transitionTo(exhaustedState))
+            ledger.findById(payId.id()).ifPresent(entry -> entry.transitionTo(exhaustedState))
         );
-        rabbit.convertAndSend(PayTopology.EXCHANGE, PayTopology.DEAD_LETTER_ROUTING_KEY, pay);
+        rabbit.convertAndSend(PayTopology.EXCHANGE, PayTopology.DEAD_LETTER_ROUTING_KEY, payId);
       }
       return null;
     } finally {
