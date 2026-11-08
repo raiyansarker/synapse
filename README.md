@@ -66,6 +66,8 @@ The app is a wallet UI: login gate, balance, send and receive, QR, on-device bio
 
 ## A payment
 
+![UPI switch transaction flow](apps/upi/docs/workflow.png)
+
 Virtual addresses look like `name@bank`. The part after `@` is the bank handle.
 
 1. A bank publishes a payment. The switch accepts it and returns an atomic id.
