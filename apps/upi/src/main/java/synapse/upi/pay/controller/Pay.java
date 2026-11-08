@@ -13,9 +13,11 @@ import org.springframework.web.bind.annotation.RestController;
 import synapse.common.VirtualAddress;
 import synapse.common.exception.NotFoundException;
 import synapse.upi.bank.BankService;
+import synapse.upi.ledger.PaymentState;
 import synapse.upi.pay.PayService;
 import synapse.upi.pay.dto.AcceptPayRequest;
 import synapse.upi.pay.dto.AcceptPayResponse;
+import synapse.upi.pay.dto.PayStateResponse;
 
 @RestController
 @RequestMapping("/api/pay")
@@ -51,10 +53,18 @@ public class Pay {
 
   /** get the payment from the ledger using id */
   @GetMapping("{id}")
-  public void getPayStatus(
+  public PayStateResponse getPayState(
       @PathVariable
       String id
   ) {
-    throw new UnsupportedOperationException("not implemented");
+    PaymentState state = this.payService.getPayState(id)
+      .orElseThrow(
+        () -> new NotFoundException(
+          "Transaction not found",
+          "No Transaction exists with the given id " + id
+        )
+      );
+
+    return new PayStateResponse(state);
   }
 }

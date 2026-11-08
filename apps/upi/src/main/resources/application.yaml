@@ -22,9 +22,16 @@ spring:
           time_zone: UTC
 
 # Set true (e.g. bootRun --args='--upi.banks.seed=true') to insert demo banks.
+# Mock bank calls always take upi.mock.* : approve | decline | transient.
 upi:
   banks:
     seed: false
+  mock:
+    delay: 2000ms
+    debit: approve
+    credit: approve
+    ack: approve
+    reversal: approve
 
 springdoc:
   api-docs:
