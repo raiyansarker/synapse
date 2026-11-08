@@ -35,21 +35,50 @@ public class PayTopology {
 
   @Bean
   Queue payDebitAuthorizationQueue() {
-    return QueueBuilder.durable(DEBIT_AUTHORIZATION_QUEUE)
-        .quorum()
-        .build();
+    return QueueBuilder.durable(DEBIT_AUTHORIZATION_QUEUE).quorum().build();
   }
 
   @Bean
   Binding payDebitAuthorizationBinding(Queue payDebitAuthorizationQueue, TopicExchange payExchange) {
-    return BindingBuilder.bind(payDebitAuthorizationQueue).to(payExchange).with(DEBIT_AUTHORIZATION_ROUTING_KEY);
+    return BindingBuilder.bind(payDebitAuthorizationQueue).to(payExchange)
+        .with(DEBIT_AUTHORIZATION_ROUTING_KEY);
+  }
+
+  @Bean
+  Queue payCreditAuthorizationQueue() {
+    return QueueBuilder.durable(CREDIT_AUTHORIZATION_QUEUE).quorum().build();
+  }
+
+  @Bean
+  Binding payCreditAuthorizationBinding(Queue payCreditAuthorizationQueue, TopicExchange payExchange) {
+    return BindingBuilder.bind(payCreditAuthorizationQueue).to(payExchange)
+        .with(CREDIT_AUTHORIZATION_ROUTING_KEY);
+  }
+
+  @Bean
+  Queue payAcknowledgmentQueue() {
+    return QueueBuilder.durable(ACKNOWLEDGMENT_QUEUE).quorum().build();
+  }
+
+  @Bean
+  Binding payAcknowledgmentBinding(Queue payAcknowledgmentQueue, TopicExchange payExchange) {
+    return BindingBuilder.bind(payAcknowledgmentQueue).to(payExchange)
+        .with(ACKNOWLEDGMENT_ROUTING_KEY);
+  }
+
+  @Bean
+  Queue payReversalQueue() {
+    return QueueBuilder.durable(REVERSAL_QUEUE).quorum().build();
+  }
+
+  @Bean
+  Binding payReversalBinding(Queue payReversalQueue, TopicExchange payExchange) {
+    return BindingBuilder.bind(payReversalQueue).to(payExchange).with(REVERSAL_ROUTING_KEY);
   }
 
   @Bean
   Queue payDeadLetterQueue() {
-    return QueueBuilder.durable(DEAD_LETTER_QUEUE)
-        .quorum()
-        .build();
+    return QueueBuilder.durable(DEAD_LETTER_QUEUE).quorum().build();
   }
 
   @Bean
