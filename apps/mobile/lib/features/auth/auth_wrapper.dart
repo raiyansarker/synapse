@@ -26,46 +26,17 @@ class _AuthWrapperState extends State<AuthWrapper> {
   @override
   void initState() {
     super.initState();
-    _checkQuickLogin();
+    _bootstrap();
   }
 
-  Future<void> _checkQuickLogin() async {
+  Future<void> _bootstrap() async {
+    await loadStoredUserProfile();
+
     if (_bypassLoginForTesting) {
       authNotifier.value = true;
-      if (mounted) {
-        setState(() => _isLoading = false);
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          checkLoanAutoDeduction();
-          checkSavingsAutoCut();
-        });
-      }
-      return;
-    }
-
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final name = prefs.getString('user_name');
-      final email = prefs.getString('user_email');
-      final isBioEnabled = prefs.getBool('biometric_enabled') ?? false;
-      final avatar = prefs.getString('user_avatar');
-
-      if (email != null) {
-        userNotifier.value = UserState(
-          name: (name != null && name.isNotEmpty && name != 'User') ? name : kHardcodedName,
-          email: email,
-          isBiometricEnabled: isBioEnabled,
-          avatarPath: avatar,
-        );
-        if (isBioEnabled) {
-          final success = await localAuth.authenticate(
-            localizedReason: 'Quick Login',
-            options: const AuthenticationOptions(stickyAuth: true, biometricOnly: true),
-          );
-          if (success) authNotifier.value = true;
-        }
-      }
-    } catch (e) {
-      debugPrint('Error: $e');
+    } else {
+      final email = userNotifier.value.email;
+      if (email.isNotEmpty) authNotifier.value = true;
     }
 
     if (mounted) {
