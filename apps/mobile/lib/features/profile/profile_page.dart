@@ -109,169 +109,142 @@ class _ProfilePageState extends State<ProfilePage> {
       ),
       body: ValueListenableBuilder<UserState>(
         valueListenable: userNotifier,
-        builder: (context, user, _) => ListView(
-          padding: EdgeInsets.fromLTRB(20, 2, 20, bottomInset),
-          children: [
-            // Top Profile Avatar & Name (Centered, prominent avatar)
-            Center(
-              child: Column(
-                children: [
-                  GestureDetector(
-                    onTap: _showAvatarPickerOptions,
-                    child: Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        CircleAvatar(
-                          radius: 46,
-                          backgroundColor: const Color(0xFFF1F5F9),
-                          backgroundImage: _avatarProvider(user),
-                        ),
-                        Positioned(
-                          bottom: 0,
-                          right: 0,
-                          child: Container(
-                            width: 30,
-                            height: 30,
-                            decoration: BoxDecoration(
-                              color: const Color(0xFF0F172A),
-                              shape: BoxShape.circle,
-                              border: Border.all(color: kWhite, width: 2.5),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.15),
-                                  blurRadius: 4,
-                                  offset: const Offset(0, 1),
-                                ),
-                              ],
+        builder: (context, user, _) {
+          final displayName = user.name.isEmpty ? kHardcodedName : user.name;
+          return ListView(
+            padding: EdgeInsets.only(bottom: bottomInset),
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(_hPad, 2, _hPad, 0),
+                child: Center(
+                  child: Column(
+                    children: [
+                      GestureDetector(
+                        onTap: () => _changePhoto(user),
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            CircleAvatar(
+                              key: ValueKey(user.avatarPath),
+                              radius: 46,
+                              backgroundColor: const Color(0xFFF1F5F9),
+                              backgroundImage: userAvatarProvider(user.avatarPath),
                             ),
-                            child: const Center(
-                              child: Icon(
-                                Icons.camera_alt_rounded,
-                                size: 15,
-                                color: kWhite,
+                            Positioned(
+                              bottom: 0,
+                              right: 0,
+                              child: Container(
+                                width: 28,
+                                height: 28,
+                                decoration: BoxDecoration(
+                                  color: const Color(0xFF0F172A),
+                                  shape: BoxShape.circle,
+                                  border: Border.all(color: kWhite, width: 2),
+                                ),
+                                child: const Icon(Icons.camera_alt_rounded, size: 14, color: kWhite),
                               ),
                             ),
-                          ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        displayName,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.w600,
+                          color: Color(0xFF0F172A),
+                          letterSpacing: -0.3,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        user.virtualAddress,
+                        style: const TextStyle(
+                          fontSize: 13.5,
+                          fontWeight: FontWeight.w500,
+                          color: Color(0xFF64748B),
+                        ),
+                      ),
+                      if (user.email.isNotEmpty) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          user.email,
+                          style: const TextStyle(fontSize: 13, color: Color(0xFF94A3B8)),
                         ),
                       ],
-                    ),
+                    ],
                   ),
-                  const SizedBox(height: 10),
-                  Text(
-                    user.name.isEmpty ? kHardcodedName : user.name,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFF0F172A),
-                      letterSpacing: -0.3,
-                    ),
-                  ),
-                ],
+                ),
               ),
-            ),
-
-            const SizedBox(height: 16),
-
-            // Top Group (No header label)
-            _buildRow(
-              icon: Icons.person_outline_rounded,
-              title: 'Edit Profile',
-              onTap: _editName,
-            ),
-            const _MinimalDivider(),
-            _buildRow(
-              icon: Icons.shield_outlined,
-              title: 'Privacy Policy',
-              onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Synapse Privacy Policy: Data is securely encrypted on-device.')),
-                );
-              },
-            ),
-            const _MinimalDivider(),
-            _buildSwitchRow(
-              icon: Icons.fingerprint_rounded,
-              title: 'Biometric Security',
-              value: user.isBiometricEnabled,
-              onChanged: _toggleBiometrics,
-            ),
-
-            // Section 2: Preferences
-            const _SectionHeader('Preferences'),
-            _buildRow(
-              icon: Icons.notifications_none_rounded,
-              title: 'Notifications',
-              onTap: () => shellTabIndex.value = 3,
-            ),
-            const _MinimalDivider(),
-            _buildRow(
-              icon: Icons.palette_outlined,
-              title: 'Appearance',
-              onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Theme: Strict Monochrome Light Mode active')),
-                );
-              },
-            ),
-            const _MinimalDivider(),
-            _buildSwitchRow(
-              icon: Icons.volume_up_outlined,
-              title: 'Sound',
-              value: _soundEnabled,
-              onChanged: (val) => setState(() => _soundEnabled = val),
-            ),
-
-            // Section 3: Contacts & Account
-            const _SectionHeader('Contacts'),
-            _buildRow(
-              icon: Icons.help_outline_rounded,
-              title: 'Contacts Support',
-              onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Contact support at support@synapse.app')),
-                );
-              },
-            ),
-            const _MinimalDivider(),
-            _buildRow(
-              icon: Icons.receipt_long_outlined,
-              title: 'Transactions',
-              onTap: () => shellTabIndex.value = 1,
-            ),
-            const _MinimalDivider(),
-            _buildRow(
-              icon: Icons.favorite_border_rounded,
-              title: 'Favorites',
-              onTap: () {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Favorites list is empty.')),
-                );
-              },
-            ),
-
-            const SizedBox(height: 24),
-
-            // Sign Out Button (Exact style from reference)
-            Center(
-              child: GestureDetector(
-                onTap: _confirmLogout,
-                behavior: HitTestBehavior.opaque,
-                child: const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 24, vertical: 6),
-                  child: Text(
-                    'Sign Out',
-                    style: TextStyle(
-                      fontSize: 14.5,
-                      fontWeight: FontWeight.w600,
-                      color: Color(0xFFEF4444),
+              const SizedBox(height: 16),
+              _buildRow(
+                icon: Icons.add_a_photo_outlined,
+                title: 'Profile Photo',
+                subtitle: 'Choose, crop, or remove',
+                onTap: () => _changePhoto(user),
+              ),
+              const _MinimalDivider(),
+              _buildRow(
+                icon: Icons.person_outline_rounded,
+                title: 'Edit Profile',
+                subtitle: 'Name, email, phone',
+                onTap: _openEditProfile,
+              ),
+              const _MinimalDivider(),
+              _buildRow(
+                icon: Icons.shield_outlined,
+                title: 'Privacy Policy',
+                onTap: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Synapse Privacy Policy: Data is securely encrypted on-device.')),
+                  );
+                },
+              ),
+              const _SectionHeader('Preferences'),
+              _buildRow(
+                icon: Icons.notifications_none_rounded,
+                title: 'Notifications',
+                onTap: () => shellTabIndex.value = 3,
+              ),
+              const _SectionHeader('Support'),
+              _buildRow(
+                icon: Icons.help_outline_rounded,
+                title: 'Contact Support',
+                onTap: () {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Contact support at support@synapse.app')),
+                  );
+                },
+              ),
+              const _MinimalDivider(),
+              _buildRow(
+                icon: Icons.receipt_long_outlined,
+                title: 'Transactions',
+                onTap: () => shellTabIndex.value = 1,
+              ),
+              const SizedBox(height: 24),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: _hPad),
+                child: Center(
+                  child: TextButton(
+                    onPressed: _confirmLogout,
+                    style: TextButton.styleFrom(foregroundColor: const Color(0xFFEF4444)),
+                    child: const Text(
+                      'Sign Out',
+                      style: TextStyle(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w600,
+                        color: Color(0xFFEF4444),
+                      ),
                     ),
                   ),
                 ),
               ),
-            ),
-            const SizedBox(height: 12),
-          ],
-        ),
+              const SizedBox(height: 12),
+            ],
+          );
+        },
       ),
     );
   }
