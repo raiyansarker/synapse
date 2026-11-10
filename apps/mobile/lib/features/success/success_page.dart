@@ -1,118 +1,114 @@
 import 'package:flutter/material.dart';
-import '../../core/constants/app_colors.dart';
+import 'package:flutter/services.dart';
 
-// =============================================================================
-// SUCCESS PAGE
-// =============================================================================
-class SuccessPage extends StatelessWidget {
-  const SuccessPage({super.key});
+import '../../core/constants/app_colors.dart';
+import '../../core/utils/formatters.dart';
+import '../send/widgets/transfer_flow_ui.dart';
+import 'widgets/animated_check_mark.dart';
+import 'widgets/transfer_status_layout.dart';
+
+class SuccessPage extends StatefulWidget {
+  final double? amount;
+  final String? recipientName;
+  final String? virtualAddress;
+  final String? avatarUrl;
+  final bool isRequest;
+
+  const SuccessPage({
+    super.key,
+    this.amount,
+    this.recipientName,
+    this.virtualAddress,
+    this.avatarUrl,
+    this.isRequest = false,
+  });
+
+  bool get isTransfer => amount != null && recipientName != null;
 
   @override
-  Widget build(BuildContext context) {
-    final now = DateTime.now();
-    return Scaffold(
-      backgroundColor: kBgGrey,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            children: [
-              const SizedBox(height: 40),
-              Container(
-                width: 100,
-                height: 100,
-                decoration: const BoxDecoration(
-                  color: kBlack,
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(Icons.check, size: 50, color: kWhite),
-              ),
-              const SizedBox(height: 24),
-              const Text(
-                'Transaction Successful',
-                style: TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.bold,
-                  color: kBlack,
-                ),
-              ),
-              const SizedBox(height: 40),
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: BoxDecoration(
-                  color: kWhite,
-                  borderRadius: BorderRadius.circular(20),
-                ),
-                child: Column(
-                  children: [
-                    const _DetailRow(
-                      label: 'Status',
-                      value: 'Completed',
-                      valueColor: kGreen,
-                    ),
-                    const Divider(height: 24),
-                    _DetailRow(
-                      label: 'Reference',
-                      value:
-                          'REF${now.millisecondsSinceEpoch.toString().substring(7)}',
-                    ),
-                    const Divider(height: 24),
-                    _DetailRow(
-                      label: 'Date',
-                      value: '${now.day}/${now.month}/${now.year}',
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 40),
-              SizedBox(
-                width: double.infinity,
-                height: 56,
-                child: ElevatedButton(
-                  onPressed:
-                      () => Navigator.popUntil(context, (route) => route.isFirst),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: kBlack,
-                    foregroundColor: kWhite,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
-                  ),
-                  child: const Text(
-                    'Back to Home',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
+  State<SuccessPage> createState() => _SuccessPageState();
 }
 
-class _DetailRow extends StatelessWidget {
-  final String label;
-  final String value;
-  final Color? valueColor;
-  const _DetailRow({required this.label, required this.value, this.valueColor});
+class _SuccessPageState extends State<SuccessPage> with SingleTickerProviderStateMixin {
+  late final AnimationController _check;
+
+  @override
+  void initState() {
+    super.initState();
+    _check = AnimationController(vsync: this, duration: const Duration(milliseconds: 750));
+    _check.forward().then((_) {
+      if (mounted) HapticFeedback.mediumImpact();
+    });
+  }
+
+  @override
+  void dispose() {
+    _check.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(label, style: const TextStyle(color: kTextGrey, fontSize: 14)),
-        Text(
-          value,
-          style: TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 14,
-            color: valueColor ?? kBlack,
+    if (!widget.isTransfer) {
+      return _genericSuccess(context);
+    }
+
+    final now = DateTime.now();
+    final ref = 'REF${now.millisecondsSinceEpoch.toString().substring(5)}';
+    final time =
+        '${now.day}/${now.month}/${now.year} · ${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+
+    final isRequest = widget.isRequest;
+
+    return AnimatedBuilder(
+      animation: _check,
+      builder: (context, child) {
+        return TransferStatusLayout(
+          statusVisual: AnimatedCheckMark(
+            progress: Curves.easeOutCubic.transform(_check.value),
+            size: 88,
           ),
-        ),
+          headline: isRequest ? 'Request sent' : 'Transfer sent',
+          subheadline: formatMoney(widget.amount!),
+          recipientName: widget.recipientName!,
+          virtualAddress: widget.virtualAddress ?? '',
+          avatarUrl: widget.avatarUrl,
+          detailRows: isRequest
+              ? [
+                  const FlowReceiptRow(label: 'Status', value: 'Pending', valueColor: kTransferInk),
+                  FlowReceiptRow(label: 'Amount', value: formatMoney(widget.amount!)),
+                  FlowReceiptRow(label: 'Reference', value: ref),
+                  FlowReceiptRow(label: 'Time', value: time),
+                ]
+              : [
+                  const FlowReceiptRow(label: 'Status', value: 'Completed', valueColor: kGreen),
+                  FlowReceiptRow(label: 'Amount', value: formatMoney(widget.amount!)),
+                  FlowReceiptRow(label: 'Reference', value: ref),
+                  FlowReceiptRow(label: 'Time', value: time),
+                ],
+          bottom: FlowPrimaryButton(
+            label: 'Back to Home',
+            onPressed: () => Navigator.popUntil(context, (route) => route.isFirst),
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _genericSuccess(BuildContext context) {
+    return TransferStatusLayout(
+      statusVisual: AnimatedCheckMark(progress: 1, size: 88),
+      headline: 'All set',
+      subheadline: 'Your transaction is complete',
+      recipientName: 'Synapse',
+      virtualAddress: '—',
+      detailRows: const [
+        FlowReceiptRow(label: 'Status', value: 'Completed', valueColor: kGreen),
       ],
+      bottom: FlowPrimaryButton(
+        label: 'Back to Home',
+        onPressed: () => Navigator.popUntil(context, (route) => route.isFirst),
+      ),
     );
   }
 }
