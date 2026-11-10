@@ -10,15 +10,17 @@ dependencies:
   flutter:
     sdk: flutter
   qr_flutter: ^4.1.0
+  pretty_qr_code: ^3.6.0
   image_picker: ^1.1.2
   pdf: ^3.10.8
   printing: ^5.11.0
   mobile_scanner: ^5.0.0
   share_plus: ^13.3.1
-  local_auth: ^2.1.8
   flutter_svg: ^2.0.10+1
   shared_preferences: ^2.2.2
   url_launcher: ^6.2.6
+  path_provider: ^2.1.6
+  crop_your_image: ^2.0.1
 
 dependency_overrides:
   barcode: ^2.2.0
@@ -36,6 +38,12 @@ flutter:
   assets:
     - assets/images/logo.svg
     - assets/images/app_icon.png
+    - assets/icons/
+
+  fonts:
+    - family: Inter
+      fonts:
+        - asset: assets/fonts/InterVariable.ttf
 
 flutter_launcher_icons:
   android: "launcher_icon"
