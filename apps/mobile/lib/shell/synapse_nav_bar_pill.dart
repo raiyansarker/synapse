@@ -287,7 +287,11 @@ class _ProfileAvatar extends StatelessWidget {
               width: 1.2,
             ),
           ),
-          child: CircleAvatar(radius: 9.5, backgroundImage: image),
+          child: CircleAvatar(
+            key: ValueKey(user.avatarPath),
+            radius: 9.5,
+            backgroundImage: userAvatarProvider(user.avatarPath),
+          ),
         );
       },
     );
