@@ -19,155 +19,23 @@ class ProfilePage extends StatefulWidget {
 }
 
 class _ProfilePageState extends State<ProfilePage> {
-  bool _soundEnabled = true;
+  static const double _hPad = 20;
 
-  ImageProvider _avatarProvider(UserState u) =>
-      u.avatarPath != null && File(u.avatarPath!).existsSync()
-          ? FileImage(File(u.avatarPath!))
-          : const NetworkImage(kDefaultAvatar) as ImageProvider;
-
-  Future<void> _pickAvatar([ImageSource source = ImageSource.gallery]) async {
-    final picked = await ImagePicker().pickImage(source: source);
-    if (picked != null) {
-      userNotifier.value = userNotifier.value.copyWith(avatarPath: picked.path);
-    }
-  }
-
-  Future<void> _showAvatarPickerOptions() async {
-    showModalBottomSheet<void>(
-      context: context,
-      backgroundColor: kWhite,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
-      ),
-      builder: (ctx) => SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(vertical: 12),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Container(
-                width: 36,
-                height: 4,
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFE2E8F0),
-                  borderRadius: BorderRadius.circular(2),
-                ),
-              ),
-              const Text(
-                'Change Profile Photo',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: Color(0xFF0F172A),
-                ),
-              ),
-              const SizedBox(height: 12),
-              ListTile(
-                leading: const Icon(Icons.photo_library_outlined, color: Color(0xFF0F172A)),
-                title: const Text('Choose from Gallery', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _pickAvatar(ImageSource.gallery);
-                },
-              ),
-              ListTile(
-                leading: const Icon(Icons.camera_alt_outlined, color: Color(0xFF0F172A)),
-                title: const Text('Take Photo', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500)),
-                onTap: () {
-                  Navigator.pop(ctx);
-                  _pickAvatar(ImageSource.camera);
-                },
-              ),
-              if (userNotifier.value.avatarPath != null)
-                ListTile(
-                  leading: const Icon(Icons.delete_outline_rounded, color: Color(0xFFEF4444)),
-                  title: const Text('Remove Photo', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w500, color: Color(0xFFEF4444))),
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    userNotifier.value = userNotifier.value.copyWith(avatarPath: null);
-                  },
-                ),
-            ],
-          ),
-        ),
-      ),
+  void _openEditProfile() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const EditProfilePage()),
     );
   }
 
-  Future<void> _editName() async {
-    final ctrl = TextEditingController(text: userNotifier.value.name);
-    final result = await showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: kWhite,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text(
-          'Edit Profile Name',
-          style: TextStyle(
-            fontSize: 17,
-            fontWeight: FontWeight.w600,
-            color: Color(0xFF0F172A),
-          ),
-        ),
-        content: TextField(
-          controller: ctrl,
-          autofocus: true,
-          style: const TextStyle(fontSize: 15, color: Color(0xFF0F172A)),
-          decoration: InputDecoration(
-            hintText: 'Enter your name',
-            hintStyle: const TextStyle(color: Color(0xFF94A3B8)),
-            filled: true,
-            fillColor: const Color(0xFFF8FAFC),
-            border: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-            ),
-            enabledBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: Color(0xFFE2E8F0)),
-            ),
-            focusedBorder: OutlineInputBorder(
-              borderRadius: BorderRadius.circular(10),
-              borderSide: const BorderSide(color: Color(0xFF0F172A), width: 1.5),
-            ),
-            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel', style: TextStyle(color: Color(0xFF64748B))),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF0F172A),
-              foregroundColor: kWhite,
-              elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-            child: const Text('Save'),
-          ),
-        ],
-      ),
+  Future<void> _changePhoto(UserState user) async {
+    await showProfilePhotoPickerSheet(
+      context,
+      hasCustomPhoto: user.avatarPath != null,
+      currentAvatarPath: user.avatarPath,
+      onAvatarPathChanged: (path) {
+        userNotifier.value = userNotifier.value.copyWith(avatarPath: path);
+      },
     );
-    ctrl.dispose();
-    if (result != null && result.isNotEmpty && result != userNotifier.value.name) {
-      userNotifier.value = userNotifier.value.copyWith(name: result);
-    }
-  }
-
-  Future<void> _toggleBiometrics(bool value) async {
-    if (value) {
-      final auth = await authenticateBiometrics(context);
-      if (auth) {
-        userNotifier.value = userNotifier.value.copyWith(isBiometricEnabled: true);
-      }
-    } else {
-      userNotifier.value = userNotifier.value.copyWith(isBiometricEnabled: false);
-    }
   }
 
   void _confirmLogout() {
