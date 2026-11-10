@@ -390,11 +390,11 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-// =============================================================================
-// MINIMAL HAIRLINE DIVIDER
-// =============================================================================
 class _MinimalDivider extends StatelessWidget {
   const _MinimalDivider();
+
+  /// Aligns with row content: `_hPad` + icon (20) + gap (14).
+  static const double _indent = _ProfilePageState._hPad + 20 + 14;
 
   @override
   Widget build(BuildContext context) {
@@ -402,8 +402,8 @@ class _MinimalDivider extends StatelessWidget {
       height: 1,
       thickness: 0.5,
       color: Color(0xFFF1F5F9),
-      indent: 34,
-      endIndent: 0,
+      indent: _indent,
+      endIndent: _ProfilePageState._hPad,
     );
   }
 }
