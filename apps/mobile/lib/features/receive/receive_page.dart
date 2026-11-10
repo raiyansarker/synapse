@@ -137,6 +137,15 @@ class MyQrContent extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 2),
+            Text(
+              displayName,
+              style: const TextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w500,
+                color: Color(0xFF64748B),
+              ),
+            ),
+            const SizedBox(height: 2),
             const Text(
               'Scan to pay with Synapse',
               style: TextStyle(
