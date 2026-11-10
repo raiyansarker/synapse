@@ -113,7 +113,7 @@ class _SynapseNavBarState extends State<SynapseNavBar> {
               ),
 
               // 2: Middle Scan QR Button
-              _buildCenterScanButton(isGradient: isGradient),
+              _buildCenterScanButton(isGradient: isGradient, brand: brand),
 
               // 3: Notifications
               _buildTabItem(
