@@ -28,9 +28,9 @@ class _TransactionDetailsSheet extends StatelessWidget {
 
   String _formatTxId(String id) {
     if (id.length >= 8) {
-      return '#SYN-${id.substring(id.length - 8).toUpperCase()}';
+      return 'SYN-${id.substring(id.length - 8).toUpperCase()}';
     }
-    return '#SYN-00$id';
+    return 'SYN-00$id';
   }
 
   @override
