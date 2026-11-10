@@ -104,31 +104,28 @@ class _MyQrSheet extends StatelessWidget {
 class MyQrContent extends StatelessWidget {
   const MyQrContent({super.key});
 
-  ImageProvider _avatarProvider(UserState u) =>
-      u.avatarPath != null && File(u.avatarPath!).existsSync()
-          ? FileImage(File(u.avatarPath!))
-          : const NetworkImage(kDefaultAvatar) as ImageProvider;
-
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<UserState>(
       valueListenable: userNotifier,
       builder: (context, user, _) {
         final displayName = user.name.isEmpty ? kHardcodedName : user.name;
-        final qrPayload = 'synapse://pay?to=${Uri.encodeComponent(displayName)}';
+        final virtualAddress = user.virtualAddress;
+        final qrPayload = 'synapse://pay?to=${Uri.encodeComponent(virtualAddress)}';
 
         return Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             // User Profile Header
             CircleAvatar(
+              key: ValueKey(user.avatarPath),
               radius: 28,
               backgroundColor: const Color(0xFFF1F5F9),
-              backgroundImage: _avatarProvider(user),
+              backgroundImage: userAvatarProvider(user.avatarPath),
             ),
             const SizedBox(height: 10),
             Text(
-              displayName,
+              virtualAddress,
               style: const TextStyle(
                 fontSize: 19,
                 fontWeight: FontWeight.w700,
