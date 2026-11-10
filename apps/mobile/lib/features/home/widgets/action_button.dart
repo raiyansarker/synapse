@@ -17,6 +17,9 @@ class ActionButton extends StatelessWidget {
     this.asset,
     required this.label,
     this.color,
+    this.iconColor = Colors.white,
+    this.labelColor = Colors.white,
+    this.circleColor = const Color(0x33000000),
     required this.onTap,
   });
 
