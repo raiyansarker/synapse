@@ -90,13 +90,7 @@ class _LoanPageState extends State<LoanPage> {
     final amt = loanNotifier.value;
     if (amt <= 0) return;
 
-    bool authorized = false;
-    if (userNotifier.value.isBiometricEnabled) {
-      authorized = await authenticateBiometrics(context);
-      if (!authorized && mounted) authorized = await showPasswordDialog(context);
-    } else {
-      authorized = await showPasswordDialog(context);
-    }
+    final authorized = await showPasswordDialog(context);
 
     if (!authorized) return;
     if (!mounted) return;
