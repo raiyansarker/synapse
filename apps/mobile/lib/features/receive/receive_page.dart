@@ -154,39 +154,7 @@ class MyQrContent extends StatelessWidget {
 
             const SizedBox(height: 24),
 
-            // Clean QR Card
-            Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: kWhite,
-                borderRadius: BorderRadius.circular(24),
-                border: Border.all(color: const Color(0xFFE2E8F0), width: 1),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.04),
-                    blurRadius: 16,
-                    offset: const Offset(0, 6),
-                  ),
-                ],
-              ),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(16),
-                child: QrImageView(
-                  data: qrPayload,
-                  version: QrVersions.auto,
-                  size: 220,
-                  backgroundColor: kWhite,
-                  eyeStyle: const QrEyeStyle(
-                    eyeShape: QrEyeShape.square,
-                    color: Color(0xFF0F172A),
-                  ),
-                  dataModuleStyle: const QrDataModuleStyle(
-                    dataModuleShape: QrDataModuleShape.circle,
-                    color: Color(0xFF0F172A),
-                  ),
-                ),
-              ),
-            ),
+            StyledPaymentQr(data: qrPayload),
 
             const SizedBox(height: 24),
 
