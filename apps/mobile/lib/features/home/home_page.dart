@@ -84,10 +84,20 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
                           children: [
                             GestureDetector(
                               onTap: () => shellTabIndex.value = 4,
-                              child: CircleAvatar(
-                                key: ValueKey(user.avatarPath),
-                                radius: 18,
-                                backgroundImage: userAvatarProvider(user.avatarPath),
+                              child: Container(
+                                padding: const EdgeInsets.all(2.5),
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  border: Border.all(
+                                    color: brand.heroTitleColor.withValues(alpha: 0.85),
+                                    width: 2,
+                                  ),
+                                ),
+                                child: CircleAvatar(
+                                  key: ValueKey(user.avatarPath),
+                                  radius: 18,
+                                  backgroundImage: userAvatarProvider(user.avatarPath),
+                                ),
                               ),
                             ),
                             const SizedBox(width: 10),
