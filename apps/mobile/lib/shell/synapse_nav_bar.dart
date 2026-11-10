@@ -7,6 +7,9 @@ import '../../core/constants/app_colors.dart';
 import '../../core/state/app_state.dart';
 import '../../features/qr/qr_scanner_page.dart';
 import '../../features/send/send_page.dart';
+import '../../core/utils/virtual_address.dart';
+import '../../features/send/send_recipients.dart';
+import '../../core/utils/avatar_image.dart';
 import '../../models/user_state.dart';
 
 class SynapseNavBar extends StatefulWidget {
