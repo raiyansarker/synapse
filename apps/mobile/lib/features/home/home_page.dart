@@ -1,15 +1,15 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import '../../core/constants/app_brand_theme.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/state/app_state.dart';
 import '../../models/user_state.dart';
-import '../../models/transaction.dart';
+import '../../core/utils/avatar_image.dart';
 import '../../core/utils/formatters.dart';
-import '../../features/send/send_page.dart';
+import '../../features/send/send_recipient_picker_page.dart';
 import '../../features/receive/receive_page.dart';
-import '../transactions/widgets/transaction_details_modal.dart';
 import 'widgets/action_button.dart';
+import 'widgets/home_activity_panel.dart';
 
 // =============================================================================
 // HOME PAGE
