@@ -121,7 +121,8 @@ class _TransactionDetailsSheet extends StatelessWidget {
               _DetailItem(
                 label: 'Transaction ID',
                 value: txId,
-                onCopy: () {
+                valueColor: const Color(0xFF1D4ED8),
+                onValueTap: () {
                   Clipboard.setData(ClipboardData(text: txId));
                   ScaffoldMessenger.of(context).showSnackBar(
                     const SnackBar(
