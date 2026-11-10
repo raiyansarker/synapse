@@ -48,7 +48,8 @@ class _LoginPageState extends State<LoginPage> {
     userNotifier.value = UserState(
       name: kHardcodedName,
       email: email,
-      isBiometricEnabled: current.isBiometricEnabled,
+      phone: current.phone,
+      virtualAddress: current.virtualAddress,
       avatarPath: current.avatarPath,
     );
     authNotifier.value = true;
