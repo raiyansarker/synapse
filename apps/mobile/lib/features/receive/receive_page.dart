@@ -201,7 +201,7 @@ class MyQrContent extends StatelessWidget {
                 onPressed: () {
                   SharePlus.instance.share(
                     ShareParams(
-                      text: 'Pay $displayName on Synapse: $qrPayload',
+                      text: 'Pay $virtualAddress on Synapse: $qrPayload',
                       subject: 'Synapse Payment QR',
                     ),
                   );
