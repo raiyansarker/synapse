@@ -163,17 +163,38 @@ class _DetailItem extends StatelessWidget {
   final String label;
   final String value;
   final bool isSuccess;
-  final VoidCallback? onCopy;
+  final Color? valueColor;
+  final VoidCallback? onValueTap;
 
   const _DetailItem({
     required this.label,
     required this.value,
     this.isSuccess = false,
-    this.onCopy,
+    this.valueColor,
+    this.onValueTap,
   });
 
   @override
   Widget build(BuildContext context) {
+    final color = valueColor ?? (isSuccess ? kGreen : kBlack);
+    final valueStyle = TextStyle(
+      fontSize: 13,
+      fontWeight: FontWeight.w600,
+      color: color,
+    );
+
+    Widget valueWidget = Text(value, style: valueStyle);
+    if (onValueTap != null) {
+      valueWidget = GestureDetector(
+        onTap: onValueTap,
+        behavior: HitTestBehavior.opaque,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 4),
+          child: Text(value, style: valueStyle),
+        ),
+      );
+    }
+
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Row(
