@@ -1,10 +1,10 @@
-import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/state/app_state.dart';
+import '../../core/utils/avatar_image.dart';
 import '../../models/user_state.dart';
+import 'widgets/styled_payment_qr.dart';
 
 // =============================================================================
 // MODAL HELPER: SHOW MY QR MODAL
