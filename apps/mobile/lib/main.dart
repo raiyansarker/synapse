@@ -24,19 +24,27 @@ class MainApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      debugShowCheckedModeBanner: false,
-      theme: ThemeData(
-        useMaterial3: true,
-        fontFamily: Platform.isIOS ? null : 'Inter',
-        scaffoldBackgroundColor: kBgGrey,
-        colorScheme: ColorScheme.fromSeed(
-          seedColor: kDominantColor,
-          primary: kDominantColor,
-          surface: kWhite,
-        ),
-      ),
-      home: const AuthWrapper(),
+    return ValueListenableBuilder<AppBrandVariant>(
+      valueListenable: appBrandVariantNotifier,
+      builder: (context, variant, _) {
+        final brand = brandPaletteFor(variant);
+        return MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: applyAppButtonThemes(
+            ThemeData(
+              useMaterial3: true,
+              fontFamily: Platform.isIOS ? null : 'Inter',
+              scaffoldBackgroundColor: kBgGrey,
+              colorScheme: ColorScheme.fromSeed(
+                seedColor: brand.accent,
+                primary: brand.accent,
+                surface: kWhite,
+              ),
+            ),
+          ),
+          home: const AuthWrapper(),
+        );
+      },
     );
   }
 }
