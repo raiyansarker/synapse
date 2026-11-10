@@ -143,9 +143,11 @@ class _SynapseNavBarState extends State<SynapseNavBar> {
         ),
       ),
     );
+      },
+    );
   }
 
-  Widget _buildCenterScanButton({required bool isGradient}) {
+  Widget _buildCenterScanButton({required bool isGradient, required AppBrandPalette brand}) {
     return Expanded(
       child: Center(
         child: GestureDetector(
