@@ -244,9 +244,6 @@ class _SubscriptionCheckoutPageState extends State<SubscriptionCheckoutPage> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: kBlack,
                     foregroundColor: kWhite,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
                   ),
                   child: _isLoading
                       ? const SizedBox(
