@@ -159,13 +159,10 @@ class _SynapseNavBarState extends State<SynapseNavBar> {
                 shape: BoxShape.circle,
                 gradient: isGradient
                     ? null
-                    : const LinearGradient(
+                    : LinearGradient(
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
-                        colors: [
-                          Color(0xFFE26842),
-                          Color(0xFFC74C2B),
-                        ],
+                        colors: [brand.gradientStart, brand.gradientMid],
                       ),
                 color: isGradient ? const Color(0xFF1B1D22) : null,
                 border: Border.all(
