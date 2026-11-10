@@ -1,21 +1,16 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'core/constants/app_brand_theme.dart';
+import 'core/constants/app_button_styles.dart';
 import 'core/constants/app_colors.dart';
 import 'core/state/app_state.dart';
+import 'core/state/user_profile_persistence.dart';
 import 'features/auth/auth_wrapper.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  userNotifier.addListener(() async {
-    final p = await SharedPreferences.getInstance();
-    final u = userNotifier.value;
-    await p.setString('user_name', u.name);
-    await p.setString('user_email', u.email);
-    await p.setBool('biometric_enabled', u.isBiometricEnabled);
-    if (u.avatarPath != null) await p.setString('user_avatar', u.avatarPath!);
-  });
+  userNotifier.addListener(() => persistUserProfile(userNotifier.value));
   runApp(const MainApp());
 }
 
