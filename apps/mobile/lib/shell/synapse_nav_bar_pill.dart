@@ -84,7 +84,7 @@ class _SynapseNavBarState extends State<SynapseNavBar> {
             boxShadow: [
               BoxShadow(
                 color: isGradient
-                    ? const Color(0xFFA52C16).withValues(alpha: 0.38)
+                    ? brand.navBarShadow.withValues(alpha: 0.38)
                     : Colors.black.withValues(alpha: 0.35),
                 blurRadius: 24,
                 offset: const Offset(0, 8),
