@@ -9,6 +9,9 @@ class ActionButton extends StatelessWidget {
   final String? asset;
   final String label;
   final Color? color;
+  final Color iconColor;
+  final Color labelColor;
+  final Color circleColor;
   final VoidCallback onTap;
 
   const ActionButton({
