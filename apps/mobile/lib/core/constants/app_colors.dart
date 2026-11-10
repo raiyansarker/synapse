@@ -4,10 +4,10 @@ import 'package:flutter/material.dart';
 // DOMINATING / BRAND GRADIENT (Warm Coral / Sunset Orangey-Red from inspiration)
 // Change these constants to easily update the dominating theme across the app.
 // =============================================================================
-const Color kDominantColor = Color(0xFFD36540);          // Warm terracotta / burnt orange
-const Color kDominantGradientStart = Color(0xFFE26842);  // Glowing sunset coral-orange (top)
-const Color kDominantGradientMid = Color(0xFFC74C2B);    // Rich burnt orange (middle)
-const Color kDominantGradientEnd = Color(0xFFA52C16);    // Deep terracotta / brick red (bottom)
+const Color kDominantColor = Color(0xFFEAEAE8);          // Primary (warm gray); hero uses gradient below
+const Color kDominantGradientStart = Color(0xFFF3F2F0);
+const Color kDominantGradientMid = Color(0xFFEAEAE8);
+const Color kDominantGradientEnd = Color(0xFFD8D6D2);
 
 const LinearGradient kDominantGradient = LinearGradient(
   colors: [kDominantGradientStart, kDominantGradientMid, kDominantGradientEnd],
