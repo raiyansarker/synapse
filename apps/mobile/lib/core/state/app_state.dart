@@ -10,10 +10,11 @@ import '../../models/transaction.dart';
 // Auth state (defaulted to true for testing to bypass login)
 final ValueNotifier<bool> authNotifier = ValueNotifier(true);
 final ValueNotifier<int> shellTabIndex = ValueNotifier(0);
+// Brand look: set coral or purple here (no in-app toggle).
+final ValueNotifier<AppBrandVariant> appBrandVariantNotifier = ValueNotifier(AppBrandVariant.coral);
 final ValueNotifier<UserState> userNotifier = ValueNotifier(
   const UserState(name: kHardcodedName, email: 'bardia@synapse.com'),
 );
-final LocalAuthentication localAuth = LocalAuthentication();
 String mockUserPassword = 'password';
 
 // --- DYNAMIC DATA NOTIFIERS ---
