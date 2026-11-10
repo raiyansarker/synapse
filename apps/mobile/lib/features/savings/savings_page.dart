@@ -191,7 +191,6 @@ class _SavingsPageState extends State<SavingsPage> {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: kBlack,
                     foregroundColor: kWhite,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
                   ),
                   child: _isLoading
                       ? const SizedBox(height: 24, width: 24, child: CircularProgressIndicator(color: kWhite, strokeWidth: 2))
