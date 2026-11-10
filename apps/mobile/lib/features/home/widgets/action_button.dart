@@ -28,10 +28,10 @@ class ActionButton extends StatelessWidget {
         asset!,
         width: 22,
         height: 22,
-        colorFilter: const ColorFilter.mode(Colors.white, BlendMode.srcIn),
+        colorFilter: ColorFilter.mode(iconColor, BlendMode.srcIn),
       );
     } else if (icon != null) {
-      iconWidget = Icon(icon, color: Colors.white, size: 22);
+      iconWidget = Icon(icon, color: iconColor, size: 22);
     } else {
       iconWidget = const SizedBox.shrink();
     }
