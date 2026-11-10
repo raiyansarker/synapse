@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:local_auth/local_auth.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/constants/app_colors.dart';
 import '../../core/state/app_state.dart';
-import '../../models/user_state.dart';
+import '../../core/state/user_profile_persistence.dart';
 import '../../services/transaction_service.dart';
 import '../../shell/app_shell.dart';
 import 'login_page.dart';
