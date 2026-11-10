@@ -1,26 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:local_auth/local_auth.dart';
 import '../constants/app_colors.dart';
 import '../state/app_state.dart';
 
 // =============================================================================
 // AUTH HELPERS
 // =============================================================================
-Future<bool> authenticateBiometrics(BuildContext context) async {
-  try {
-    final withBio = await localAuth.canCheckBiometrics;
-    final supported = withBio || await localAuth.isDeviceSupported();
-    if (!supported) return true;
-
-    return await localAuth.authenticate(
-      localizedReason: 'Authenticate to proceed',
-      options: const AuthenticationOptions(stickyAuth: true, biometricOnly: true),
-    );
-  } catch (_) {
-    return false;
-  }
-}
-
 Future<bool> showPasswordDialog(BuildContext context) async {
   final passCtrl = TextEditingController();
   final result = await showDialog<bool>(
