@@ -144,8 +144,6 @@ class _TransactionDetailsSheet extends StatelessWidget {
                     backgroundColor: kBlack,
                     foregroundColor: kWhite,
                     padding: const EdgeInsets.symmetric(vertical: 14),
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                   ),
                   onPressed: () => Navigator.pop(context),
                   child: const Text('Close', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
