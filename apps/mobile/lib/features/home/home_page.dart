@@ -21,10 +21,8 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin {
-  final DraggableScrollableController _sheetController = DraggableScrollableController();
   late final AnimationController _gradientController;
   late final Animation<double> _gradientAnimation;
-  late double _screenHeight;
 
   @override
   void initState() {
