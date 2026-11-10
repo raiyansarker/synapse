@@ -1,11 +1,10 @@
-import 'dart:io';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:image_picker/image_picker.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/utils/avatar_image.dart';
 import '../../core/state/app_state.dart';
-import '../../core/utils/auth_helpers.dart';
 import '../../models/user_state.dart';
+import 'edit_profile_page.dart';
+import 'profile_avatar_picker.dart';
 
 // =============================================================================
 // SETTINGS PAGE (Minimalist & Compact)
