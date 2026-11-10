@@ -1,29 +1,38 @@
+import '../core/constants/app_colors.dart';
+
 // =============================================================================
 // USER STATE MODEL
 // =============================================================================
 class UserState {
   final String name;
   final String email;
+  final String phone;
+  /// Payment handle in the form `username@bank` (e.g. `raiyan@ucb`).
+  final String virtualAddress;
   final String? avatarPath;
-  final bool isBiometricEnabled;
 
   const UserState({
     required this.name,
     required this.email,
+    this.phone = '',
+    this.virtualAddress = kDefaultVirtualAddress,
     this.avatarPath,
-    this.isBiometricEnabled = false,
   });
 
   UserState copyWith({
     String? name,
     String? email,
-    String? avatarPath,
-    bool? isBiometricEnabled,
+    String? phone,
+    String? virtualAddress,
+    Object? avatarPath = _sentinel,
   }) =>
       UserState(
         name: name ?? this.name,
         email: email ?? this.email,
-        avatarPath: avatarPath ?? this.avatarPath,
-        isBiometricEnabled: isBiometricEnabled ?? this.isBiometricEnabled,
+        phone: phone ?? this.phone,
+        virtualAddress: virtualAddress ?? this.virtualAddress,
+        avatarPath: avatarPath == _sentinel ? this.avatarPath : avatarPath as String?,
       );
+
+  static const Object _sentinel = Object();
 }
