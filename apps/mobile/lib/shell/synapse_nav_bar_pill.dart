@@ -44,19 +44,26 @@ class _SynapseNavBarState extends State<SynapseNavBar> {
       MaterialPageRoute(builder: (_) => const QrScannerPage()),
     );
     if (!mounted || code == null) return;
+    final target = resolvePaymentTarget(code) ?? code;
     await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => SendPage(initialCode: code)),
+      MaterialPageRoute(
+        builder: (_) => SendPage(recipient: sendRecipientFromCode(target)),
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final bottomPadding = MediaQuery.paddingOf(context).bottom;
-    final bottomMargin = bottomPadding > 0 ? bottomPadding : 16.0;
+    return ValueListenableBuilder<AppBrandVariant>(
+      valueListenable: appBrandVariantNotifier,
+      builder: (context, variant, _) {
+        final brand = brandPaletteFor(variant);
+        final bottomPadding = MediaQuery.paddingOf(context).bottom;
+        final bottomMargin = bottomPadding > 0 ? bottomPadding : 16.0;
 
-    final isGradient = widget.theme == NavBarTheme.homeGradient;
+        final isGradient = widget.theme == NavBarTheme.homeGradient;
 
-    return SafeArea(
+        return SafeArea(
       top: false,
       bottom: false,
       child: Padding(
