@@ -39,17 +39,12 @@ class _QrScannerPageState extends State<QrScannerPage> {
               for (final barcode in capture.barcodes) {
                 final raw = barcode.rawValue;
                 if (raw == null) continue;
-                var code = raw;
-                if (raw.startsWith('wallet://pay') || raw.contains('code=')) {
-                  try {
-                    code = Uri.parse(raw).queryParameters['code'] ?? raw;
-                  } catch (_) {}
-                }
+                final resolved = resolvePaymentTarget(raw) ?? raw.trim();
                 _lastHit = DateTime.now();
                 if (widget.popOnDetect) {
-                  Navigator.pop(context, code);
+                  Navigator.pop(context, resolved);
                 } else {
-                  widget.onCode?.call(code);
+                  widget.onCode?.call(resolved);
                 }
                 return;
               }
