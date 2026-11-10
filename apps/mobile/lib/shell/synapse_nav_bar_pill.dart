@@ -275,9 +275,6 @@ class _ProfileAvatar extends StatelessWidget {
     return ValueListenableBuilder<UserState>(
       valueListenable: userNotifier,
       builder: (context, user, _) {
-        final image = user.avatarPath != null && File(user.avatarPath!).existsSync()
-            ? FileImage(File(user.avatarPath!))
-            : const NetworkImage(kDefaultAvatar) as ImageProvider;
         return Container(
           padding: const EdgeInsets.all(1.2),
           decoration: BoxDecoration(
