@@ -49,7 +49,7 @@ class ActionButton extends StatelessWidget {
             width: 52,
             height: 52,
             decoration: BoxDecoration(
-              color: Colors.black.withValues(alpha: 0.20),
+              color: circleColor,
               shape: BoxShape.circle,
             ),
             child: Center(child: iconWidget),
