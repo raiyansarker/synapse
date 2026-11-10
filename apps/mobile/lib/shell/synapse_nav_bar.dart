@@ -164,16 +164,17 @@ class _ProfileAvatar extends StatelessWidget {
     return ValueListenableBuilder<UserState>(
       valueListenable: userNotifier,
       builder: (context, user, _) {
-        final image = user.avatarPath != null && File(user.avatarPath!).existsSync()
-            ? FileImage(File(user.avatarPath!))
-            : const NetworkImage(kDefaultAvatar) as ImageProvider;
         return Container(
           padding: const EdgeInsets.all(1.5),
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             border: Border.all(color: active ? kBlack : Colors.transparent, width: 1.5),
           ),
-          child: CircleAvatar(radius: 11, backgroundImage: image),
+          child: CircleAvatar(
+            key: ValueKey(user.avatarPath),
+            radius: 11,
+            backgroundImage: userAvatarProvider(user.avatarPath),
+          ),
         );
       },
     );
