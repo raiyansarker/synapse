@@ -27,13 +27,7 @@ class _UpgradePageState extends State<UpgradePage> {
       return;
     }
 
-    bool authorized = false;
-    if (userNotifier.value.isBiometricEnabled) {
-      authorized = await authenticateBiometrics(context);
-      if (!authorized && mounted) authorized = await showPasswordDialog(context);
-    } else {
-      authorized = await showPasswordDialog(context);
-    }
+    final authorized = await showPasswordDialog(context);
 
     if (!authorized) return;
     if (!mounted) return;
