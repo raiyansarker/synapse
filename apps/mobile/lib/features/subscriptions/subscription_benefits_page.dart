@@ -118,9 +118,6 @@ class SubscriptionBenefitsPage extends StatelessWidget {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: kBlack,
                     foregroundColor: kWhite,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(16),
-                    ),
                   ),
                   child: Text(
                     'Proceed to Pay ${formatMoney(sub.price)}',
