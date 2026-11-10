@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import '../../core/constants/app_colors.dart';
+import '../../core/utils/virtual_address.dart';
 
 // =============================================================================
 // QR SCANNER PAGE
