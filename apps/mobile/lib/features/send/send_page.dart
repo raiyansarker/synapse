@@ -1,85 +1,73 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+
 import '../../core/constants/app_colors.dart';
 import '../../core/state/app_state.dart';
-import '../../core/utils/auth_helpers.dart';
 import '../../core/utils/formatters.dart';
 import '../../models/transaction.dart';
 import '../../services/transaction_service.dart';
-import '../../features/qr/qr_scanner_page.dart';
-import '../../features/success/success_page.dart';
+import '../success/success_page.dart';
+import '../success/transfer_processing_page.dart';
+import 'send_recipients.dart';
+import 'widgets/amount_keypad.dart';
+import 'widgets/send_confirm_sheet.dart';
+import 'widgets/transfer_flow_ui.dart';
 
-// =============================================================================
-// SEND PAGE
-// =============================================================================
 class SendPage extends StatefulWidget {
-  final String? initialCode;
+  final SendRecipient recipient;
   final bool isRequest;
-  const SendPage({super.key, this.initialCode, this.isRequest = false});
+
+  const SendPage({super.key, required this.recipient, this.isRequest = false});
+
   @override
   State<SendPage> createState() => _SendPageState();
 }
 
 class _SendPageState extends State<SendPage> {
-  late final TextEditingController _codeController;
+  static const _quickAmounts = [50, 100, 500, 1000];
   String _amount = '0';
 
-  @override
-  void initState() {
-    super.initState();
-    _codeController = TextEditingController(text: widget.initialCode ?? '');
-  }
-
-  @override
-  void dispose() {
-    _codeController.dispose();
-    super.dispose();
+  void _setPresetAmount(int value) {
+    HapticFeedback.selectionClick();
+    setState(() => _amount = value.toString());
   }
 
   void _onKeyPress(String key) {
     FocusScope.of(context).unfocus();
-
     setState(() {
       if (key == 'back') {
-        if (_amount.length > 1) {
-          _amount = _amount.substring(0, _amount.length - 1);
-        } else {
-          _amount = '0';
-        }
+        _amount = _amount.length > 1 ? _amount.substring(0, _amount.length - 1) : '0';
       } else if (key == '.') {
         if (!_amount.contains('.')) _amount += '.';
-      } else {
-        if (_amount == '0') {
-          _amount = key;
-        } else {
-          if (_amount.contains('.') && _amount.split('.')[1].length >= 2) return;
-          _amount += key;
-        }
+      } else if (_amount == '0') {
+        _amount = key;
+      } else if (!_amount.contains('.') || _amount.split('.')[1].length < 2) {
+        _amount += key;
       }
     });
   }
 
   Future<void> _processTransfer() async {
-    final code = _codeController.text.trim();
     final amt = double.tryParse(_amount) ?? 0;
-
-    if (code.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a recipient code')));
-      return;
-    }
-
     if (amt <= 0) {
       ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a valid amount')));
       return;
     }
 
     if (widget.isRequest) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Payment request of ৳$amt sent to $code'),
-          backgroundColor: const Color(0xFF0F172A),
+      HapticFeedback.mediumImpact();
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (_) => SuccessPage(
+            amount: amt,
+            recipientName: widget.recipient.name,
+            virtualAddress: widget.recipient.virtualAddress,
+            avatarUrl: widget.recipient.avatarUrl,
+            isRequest: true,
+          ),
         ),
       );
-      Navigator.pop(context);
       return;
     }
 
