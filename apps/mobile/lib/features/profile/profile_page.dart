@@ -279,105 +279,58 @@ class _ProfilePageState extends State<ProfilePage> {
   Widget _buildRow({
     required IconData icon,
     required String title,
-    String? trailingText,
+    String? subtitle,
     required VoidCallback onTap,
   }) {
     return InkWell(
       onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
+      borderRadius: BorderRadius.circular(20),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 10.5),
+        padding: const EdgeInsets.fromLTRB(_hPad, 10.5, _hPad, 10.5),
         child: Row(
           children: [
-            Icon(
-              icon,
-              size: 20,
-              color: const Color(0xFF0F172A),
-            ),
+            Icon(icon, size: 20, color: const Color(0xFF0F172A)),
             const SizedBox(width: 14),
             Expanded(
-              child: Text(
-                title,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w400,
-                  color: Color(0xFF0F172A),
-                ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w400,
+                      color: Color(0xFF0F172A),
+                    ),
+                  ),
+                  if (subtitle != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitle,
+                      style: const TextStyle(fontSize: 12, color: Color(0xFF94A3B8)),
+                    ),
+                  ],
+                ],
               ),
             ),
-            if (trailingText != null) ...[
-              Text(
-                trailingText,
-                style: const TextStyle(
-                  fontSize: 12.5,
-                  color: Color(0xFF64748B),
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              const SizedBox(width: 6),
-            ],
-            const Icon(
-              Icons.chevron_right_rounded,
-              size: 19,
-              color: Color(0xFF94A3B8),
-            ),
+            const Icon(Icons.chevron_right_rounded, size: 19, color: Color(0xFF94A3B8)),
           ],
         ),
       ),
     );
   }
-
-  Widget _buildSwitchRow({
-    required IconData icon,
-    required String title,
-    required bool value,
-    required ValueChanged<bool> onChanged,
-  }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 5.5),
-      child: Row(
-        children: [
-          Icon(
-            icon,
-            size: 20,
-            color: const Color(0xFF0F172A),
-          ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Text(
-              title,
-              style: const TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w400,
-                color: Color(0xFF0F172A),
-              ),
-            ),
-          ),
-          Transform.scale(
-            scale: 0.85,
-            child: CupertinoSwitch(
-              value: value,
-              activeTrackColor: const Color(0xFF0F172A),
-              onChanged: onChanged,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
 
-// =============================================================================
-// SECTION HEADER
-// =============================================================================
 class _SectionHeader extends StatelessWidget {
   final String title;
   const _SectionHeader(this.title);
 
+  static const double _hPad = _ProfilePageState._hPad;
+
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(top: 16, bottom: 4),
+      padding: const EdgeInsets.fromLTRB(_hPad, 16, _hPad, 4),
       child: Text(
         title,
         style: const TextStyle(
