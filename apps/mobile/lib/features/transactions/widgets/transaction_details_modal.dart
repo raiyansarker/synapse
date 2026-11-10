@@ -203,30 +203,7 @@ class _DetailItem extends StatelessWidget {
             label,
             style: const TextStyle(fontSize: 13, color: kTextGrey),
           ),
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                value,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: isSuccess ? kGreen : kBlack,
-                ),
-              ),
-              if (onCopy != null) ...[
-                const SizedBox(width: 4),
-                GestureDetector(
-                  onTap: onCopy,
-                  behavior: HitTestBehavior.opaque,
-                  child: const Padding(
-                    padding: EdgeInsets.all(4),
-                    child: Icon(Icons.copy, size: 14, color: kTextGrey),
-                  ),
-                ),
-              ],
-            ],
-          ),
+          valueWidget,
         ],
       ),
     );
