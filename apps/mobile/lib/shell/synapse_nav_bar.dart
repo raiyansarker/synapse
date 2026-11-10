@@ -55,8 +55,11 @@ class _SynapseNavBarState extends State<SynapseNavBar> with SingleTickerProvider
       MaterialPageRoute(builder: (_) => const QrScannerPage()),
     );
     if (!mounted || code == null) return;
+    final target = resolvePaymentTarget(code) ?? code;
     await Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => SendPage(initialCode: code)),
+      MaterialPageRoute(
+        builder: (_) => SendPage(recipient: sendRecipientFromCode(target)),
+      ),
     );
   }
 
