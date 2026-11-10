@@ -67,6 +67,7 @@ class _SynapseNavBarState extends State<SynapseNavBar> with SingleTickerProvider
   Widget build(BuildContext context) {
     return Material(
       color: kWhite,
+      clipBehavior: Clip.none,
       child: DecoratedBox(
         decoration: const BoxDecoration(
           border: Border(top: BorderSide(color: Color(0xFFE5E7EB))),
@@ -74,11 +75,12 @@ class _SynapseNavBarState extends State<SynapseNavBar> with SingleTickerProvider
         child: SafeArea(
           top: false,
           child: SizedBox(
-            height: 62,
+            height: 66,
             child: LayoutBuilder(
               builder: (context, constraints) {
                 final slot = constraints.maxWidth / _slotCount;
                 return Stack(
+                  clipBehavior: Clip.none,
                   children: [
                     AnimatedBuilder(
                       animation: _controller,
@@ -98,7 +100,7 @@ class _SynapseNavBarState extends State<SynapseNavBar> with SingleTickerProvider
                       children: [
                         _item(slot: 0, asset: 'assets/icons/home.svg', filled: 'assets/icons/home-solid.svg', label: 'Home', onTap: () => shellTabIndex.value = 0),
                         _item(slot: 1, asset: 'assets/icons/receipt.svg', filled: 'assets/icons/receipt-solid.svg', label: 'Transactions', onTap: () => shellTabIndex.value = 1),
-                        _item(slot: 2, asset: 'assets/icons/scan-barcode.svg', filled: 'assets/icons/scan-barcode-solid.svg', label: 'Scan QR', onTap: _openScanner),
+                        _scanItem(),
                         _item(slot: 3, asset: 'assets/icons/bell.svg', filled: 'assets/icons/bell-solid.svg', label: 'Notifications', onTap: () => shellTabIndex.value = 3, dot: widget.showAlert),
                         _item(slot: 4, asset: 'assets/icons/user.svg', filled: 'assets/icons/user-solid.svg', label: 'Settings', onTap: () => shellTabIndex.value = 4, avatar: true),
                       ],
@@ -106,6 +108,59 @@ class _SynapseNavBarState extends State<SynapseNavBar> with SingleTickerProvider
                   ],
                 );
               },
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _scanItem() {
+    return Expanded(
+      child: Semantics(
+        button: true,
+        label: 'Scan QR',
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: _openScanner,
+          child: SizedBox(
+            height: 66,
+            child: OverflowBox(
+              maxHeight: 96,
+              child: Center(
+                child: Transform.translate(
+                  offset: const Offset(0, -20),
+                  child: Container(
+                    width: 62,
+                    height: 62,
+                    decoration: BoxDecoration(
+                      color: kBlack,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: const Color(0xFFE5E7EB), width: 3),
+                      boxShadow: const [
+                        BoxShadow(
+                          color: Color(0x33000000),
+                          blurRadius: 14,
+                          offset: Offset(0, 6),
+                        ),
+                        BoxShadow(
+                          color: Color(0x1A000000),
+                          blurRadius: 4,
+                          offset: Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Center(
+                      child: SvgPicture.asset(
+                        'assets/icons/scan-barcode-solid.svg',
+                        width: 29,
+                        height: 29,
+                        colorFilter: const ColorFilter.mode(kWhite, BlendMode.srcIn),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
             ),
           ),
         ),
