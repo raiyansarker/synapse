@@ -66,14 +66,10 @@ class _SynapseNavBarState extends State<SynapseNavBar> {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(38),
             gradient: isGradient
-                ? const LinearGradient(
+                ? LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [
-                      kDominantGradientStart, // 0xFFE26842
-                      kDominantGradientMid,   // 0xFFC74C2B
-                      kDominantGradientEnd,   // 0xFFA52C16
-                    ],
+                    colors: brand.navBarGradientColors,
                   )
                 : null,
             color: isGradient ? null : const Color(0xFF23252A),
