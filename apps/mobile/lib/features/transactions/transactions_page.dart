@@ -2,9 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../core/constants/app_colors.dart';
 import '../../core/state/app_state.dart';
-import '../../core/utils/formatters.dart';
 import '../../models/transaction.dart';
-import 'widgets/transaction_details_modal.dart';
+import 'widgets/transaction_list_content.dart';
 
 class TransactionsPage extends StatelessWidget {
   const TransactionsPage({super.key});
