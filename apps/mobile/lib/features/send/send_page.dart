@@ -91,150 +91,144 @@ class _SendPageState extends State<SendPage> {
       return;
     }
 
-    bool authorized = false;
-    if (userNotifier.value.isBiometricEnabled) {
-      authorized = await authenticateBiometrics(context);
-      if (!authorized && mounted) authorized = await showPasswordDialog(context);
-    } else {
-      authorized = await showPasswordDialog(context);
-    }
-
-    if (!authorized) return;
+    if (!await showSendConfirmSheet(context, recipient: widget.recipient, amount: amt)) return;
     if (!mounted) return;
 
+    HapticFeedback.mediumImpact();
     addTransaction(Tx(
       id: DateTime.now().millisecondsSinceEpoch.toString(),
-      title: widget.isRequest ? 'Requested from $code' : 'Sent to $code',
-      subtitle: widget.isRequest ? 'Request' : 'Transfer',
-      amount: widget.isRequest ? amt : -amt,
+      title: 'Sent to ${widget.recipient.name}',
+      subtitle: 'Transfer',
+      amount: -amt,
       time: 'Just now',
-      icon: widget.isRequest ? Icons.file_download_outlined : Icons.file_upload_outlined,
-      isIncome: widget.isRequest,
+      icon: Icons.file_upload_outlined,
+      isIncome: false,
     ));
 
-    Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const SuccessPage()));
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => TransferProcessingPage(
+          amount: amt,
+          recipientName: widget.recipient.name,
+          virtualAddress: widget.recipient.virtualAddress,
+          avatarUrl: widget.recipient.avatarUrl,
+        ),
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
+    final title = widget.isRequest ? 'Request Money' : 'Send Money';
+
     return Scaffold(
-      backgroundColor: kWhite,
+      backgroundColor: kTransferTopTone,
       appBar: AppBar(
-        backgroundColor: kWhite,
+        backgroundColor: kTransferTopTone,
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
-        leading: IconButton(icon: const Icon(Icons.arrow_back, color: kBlack), onPressed: () => Navigator.pop(context)),
-        title: Text(widget.isRequest ? 'Request Money' : 'Send Money', style: const TextStyle(color: kBlack, fontWeight: FontWeight.bold)),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back_ios_new_rounded, color: kBlack, size: 20),
+          onPressed: () => Navigator.pop(context),
+        ),
+        title: Text(title, style: const TextStyle(color: kBlack, fontWeight: FontWeight.w600, fontSize: 17)),
         centerTitle: true,
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.qr_code_scanner, color: kBlack),
-            onPressed: () async {
-              final result = await Navigator.push<String>(context, MaterialPageRoute(builder: (_) => const QrScannerPage()));
-              if (result != null) {
-                _codeController.text = result;
-              }
-            },
-          ),
-        ],
       ),
       body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: RepaintBoundary(
-              child: Container(
-                decoration: BoxDecoration(color: kBgGrey, borderRadius: BorderRadius.circular(16)),
-                child: Row(
+          Expanded(
+            child: FlowAmountStage(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(24, 8, 24, 12),
+                child: Column(
                   children: [
-                    const Padding(
-                      padding: EdgeInsets.only(left: 20, right: 12),
-                      child: Icon(Icons.person_outline, color: kBlack),
+                    FlowRecipientHero(
+                      name: widget.recipient.name,
+                      virtualAddress: widget.recipient.virtualAddress,
+                      avatarUrl: widget.recipient.avatarUrl,
                     ),
-                    Expanded(
-                      child: TextField(
-                        controller: _codeController,
-                        style: const TextStyle(fontSize: 16, color: kBlack, fontWeight: FontWeight.w500),
-                        decoration: InputDecoration(
-                          hintText: widget.isRequest ? 'Enter payer code' : 'Enter recipient code',
-                          hintStyle: const TextStyle(color: kTextGrey, fontSize: 16),
-                          border: InputBorder.none,
-                          contentPadding: const EdgeInsets.symmetric(vertical: 18),
+                    const Spacer(),
+                    FlowAmountHero(digits: _amount),
+                    const SizedBox(height: 8),
+                    if (!widget.isRequest)
+                      ValueListenableBuilder<double>(
+                        valueListenable: balanceNotifier,
+                        builder: (context, balance, child) => Text(
+                          'Available ${formatMoney(balance)}',
+                          style: const TextStyle(color: kTextGrey, fontSize: 15),
                         ),
                       ),
-                    ),
+                    const Spacer(),
                   ],
                 ),
               ),
             ),
           ),
-
-          const SizedBox(height: 10),
-          Text('৳$_amount', style: const TextStyle(fontSize: 48, fontWeight: FontWeight.bold, color: kBlack)),
-          const SizedBox(height: 8),
-          ValueListenableBuilder<double>(
-            valueListenable: balanceNotifier,
-            builder: (context, balance, _) => Text('Available: ${formatMoney(balance)}', style: const TextStyle(color: kTextGrey)),
-          ),
-          const Spacer(),
-
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 40),
+          FlowKeypadDock(
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                _buildKeyRow(['1', '2', '3']),
-                _buildKeyRow(['4', '5', '6']),
-                _buildKeyRow(['7', '8', '9']),
-                _buildKeyRow(['.', '0', 'back']),
+                Row(
+                  children: _quickAmounts.map((v) {
+                    final on = _amount == v.toString();
+                    return Expanded(
+                      child: Padding(
+                        padding: EdgeInsets.only(right: v == _quickAmounts.last ? 0 : 8),
+                        child: _QuickPill(
+                          label: '$v',
+                          selected: on,
+                          onTap: () => _setPresetAmount(v),
+                        ),
+                      ),
+                    );
+                  }).toList(),
+                ),
+                const SizedBox(height: 12),
+                AmountKeypad(onKey: _onKeyPress),
+                const SizedBox(height: 10),
+                FlowPrimaryButton(
+                  label: widget.isRequest ? 'Request Money' : 'Confirm Transfer',
+                  onPressed: _processTransfer,
+                ),
               ],
-            ),
-          ),
-          const SizedBox(height: 20),
-
-          Padding(
-            padding: const EdgeInsets.all(20),
-            child: SizedBox(
-              width: double.infinity,
-              height: 56,
-              child: ElevatedButton(
-                onPressed: _processTransfer,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: kBlack,
-                  foregroundColor: kWhite,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                ),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(widget.isRequest ? Icons.arrow_downward : Icons.lock, size: 18),
-                    const SizedBox(width: 8),
-                    Text(widget.isRequest ? 'Request Money' : 'Confirm Transfer', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                  ],
-                ),
-              ),
             ),
           ),
         ],
       ),
     );
   }
+}
 
-  Widget _buildKeyRow(List<String> keys) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-      children: keys.map((k) {
-        return InkWell(
-          onTap: () => _onKeyPress(k),
-          borderRadius: BorderRadius.circular(40),
-          child: Container(
-            width: 70,
-            height: 70,
-            alignment: Alignment.center,
-            child: k == 'back'
-                ? const Icon(Icons.backspace_outlined, color: kBlack)
-                : Text(k, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.w500, color: kBlack)),
+class _QuickPill extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+
+  const _QuickPill({required this.label, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: selected ? kBlack : kBgGrey,
+      borderRadius: BorderRadius.circular(20),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(20),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 10),
+          child: Center(
+            child: Text(
+              label,
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                color: selected ? kWhite : kBlack,
+              ),
+            ),
           ),
-        );
-      }).toList(),
+        ),
+      ),
     );
   }
 }
