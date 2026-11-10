@@ -31,6 +31,14 @@ const Color kTextGrey = Color(0xFF9CA3AF);
 const Color kRed = Color(0xFFE53935);
 const Color kGreen = Color(0xFF10B981);
 
+/// Send / transfer flow top surface (amount, processing, success).
+const Color kTransferTopTone = Color(0xFFE2E2E0);
+const Color kTransferInk = Color(0xFF0F172A);
+const Color kTransferBorder = Color(0xFFE2E8F0);
+const Color kTransferMutedSurface = Color(0xFFF8FAFC);
+
 const String kDefaultAvatar =
     'https://images.unsplash.com/photo-1569779213435-ba3167dde7cc?q=80&w=1480&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=NHwxMjA3fDA%3D';
 const String kHardcodedName = 'Jack';
+/// Default Synapse virtual address (`username@bank`, e.g. `raiyan@ucb`).
+const String kDefaultVirtualAddress = 'raiyan@ucb';
