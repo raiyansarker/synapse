@@ -40,41 +40,30 @@ class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin
   }
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _screenHeight = MediaQuery.of(context).size.height;
-  }
-
-  @override
   void dispose() {
     _gradientController.dispose();
-    _sheetController.dispose();
     super.dispose();
   }
 
-  ImageProvider _avatarProvider(UserState u) =>
-      u.avatarPath != null && File(u.avatarPath!).existsSync()
-          ? FileImage(File(u.avatarPath!))
-          : const NetworkImage(kDefaultAvatar) as ImageProvider;
-
-  static const double _kSheetInitialSize = 0.58;
-  static const double _kSheetMinSize = 0.50;
-
   @override
   Widget build(BuildContext context) {
-    final isDominantDark = ThemeData.estimateBrightnessForColor(kDominantColor) == Brightness.dark;
+    return AnimatedBuilder(
+      animation: Listenable.merge([_gradientAnimation, appBrandVariantNotifier]),
+      builder: (context, _) {
+        final brand = brandPaletteFor(appBrandVariantNotifier.value);
+        final isDominantDark = ThemeData.estimateBrightnessForColor(brand.gradientEnd) == Brightness.dark;
 
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: isDominantDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
-      child: Scaffold(
-        backgroundColor: kDominantGradientDark,
-        body: AnimatedBuilder(
-          animation: _gradientAnimation,
-          builder: (context, _) {
-            final t = _gradientAnimation.value;
-            final color1 = Color.lerp(const Color(0xFFE26842), const Color(0xFFEA5A35), t)!;
-            final color2 = Color.lerp(const Color(0xFFC74C2B), const Color(0xFFB83D1F), t)!;
-            final color3 = Color.lerp(const Color(0xFFA52C16), const Color(0xFF8B220F), t)!;
+        return AnnotatedRegion<SystemUiOverlayStyle>(
+          value: isDominantDark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark,
+          child: Scaffold(
+            backgroundColor: brand.gradientDark,
+            body: AnimatedBuilder(
+              animation: _gradientAnimation,
+              builder: (context, _) {
+                final t = _gradientAnimation.value;
+                final color1 = Color.lerp(brand.animColor1A, brand.animColor1B, t)!;
+                final color2 = Color.lerp(brand.animColor2A, brand.animColor2B, t)!;
+                final color3 = Color.lerp(brand.animColor3A, brand.animColor3B, t)!;
 
             return Container(
               decoration: BoxDecoration(
