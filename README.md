@@ -20,6 +20,7 @@ The wallet is the client. The dashed line is the intended path: the app still ke
 | --- | --- |
 | [`apps/upi`](apps/upi) | The switch. Spring Boot 4.1, Java 25, PostgreSQL, RabbitMQ. |
 | [`apps/bank`](apps/bank) | A participating bank. Spring Boot 4.1, Java 25, PostgreSQL. |
+| [`apps/admin`](apps/admin) | Switch Operator Dashboard. React, Vite, Tailwind CSS, and shadcn/ui. |
 | [`apps/mobile`](apps/mobile) | Synapse Wallet. Flutter. |
 | [`libs/common`](libs/common) | Shared HTTP envelope, error types, and request ids for the Java services. |
 

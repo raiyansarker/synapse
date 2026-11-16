@@ -1,0 +1,132 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "@fontsource-variable/hanken-grotesk";
+
+@custom-variant dark (&:is(.dark *));
+
+/* Tokens follow the wallet: near-black ink on cool grey, green and red only for money outcomes. */
+:root {
+  color-scheme: light;
+  --radius: 0.625rem;
+  --background: #f3f4f6;
+  --foreground: #1a1a1a;
+  --card: #ffffff;
+  --card-foreground: #1a1a1a;
+  --popover: #ffffff;
+  --popover-foreground: #1a1a1a;
+  --primary: #1a1a1a;
+  --primary-foreground: #ffffff;
+  --secondary: #e9eaee;
+  --secondary-foreground: #1a1a1a;
+  --muted: #ebecf0;
+  --muted-foreground: #6b7280;
+  --accent: #e9eaee;
+  --accent-foreground: #1a1a1a;
+  --destructive: #e53935;
+  --border: #e1e3e8;
+  --input: #d5d8de;
+  --ring: #1a1a1a;
+  --ok: #0e9f6e;
+  --warn: #b7791f;
+  --bad: #e53935;
+  --chart-1: #1a1a1a;
+  --chart-2: #0e9f6e;
+  --chart-3: #9ca3af;
+  --chart-4: #b7791f;
+  --chart-5: #e53935;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #1a1a1a;
+  --sidebar-primary: #1a1a1a;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f3f4f6;
+  --sidebar-accent-foreground: #1a1a1a;
+  --sidebar-border: #e1e3e8;
+  --sidebar-ring: #1a1a1a;
+}
+
+/* Same ink-on-grey idea, inverted. Greens and reds are lifted so they stay legible on dark. */
+.dark {
+  color-scheme: dark;
+  --background: #0e0f11;
+  --foreground: #ededf0;
+  --card: #17181b;
+  --card-foreground: #ededf0;
+  --popover: #1c1d21;
+  --popover-foreground: #ededf0;
+  --primary: #ededf0;
+  --primary-foreground: #111214;
+  --secondary: #25262b;
+  --secondary-foreground: #ededf0;
+  --muted: #202125;
+  --muted-foreground: #9a9ea8;
+  --accent: #25262b;
+  --accent-foreground: #ededf0;
+  --destructive: #ef5350;
+  --border: #2a2b30;
+  --input: #34353b;
+  --ring: #c9ccd3;
+  --ok: #34d399;
+  --warn: #e0a84a;
+  --bad: #ef5350;
+  --chart-1: #ededf0;
+  --chart-2: #34d399;
+  --chart-3: #5b5f6a;
+  --chart-4: #e0a84a;
+  --chart-5: #ef5350;
+  --sidebar: #141518;
+  --sidebar-foreground: #ededf0;
+  --sidebar-primary: #ededf0;
+  --sidebar-primary-foreground: #111214;
+  --sidebar-accent: #202125;
+  --sidebar-accent-foreground: #ededf0;
+  --sidebar-border: #2a2b30;
+  --sidebar-ring: #c9ccd3;
+}
+
+@theme inline {
+  --font-sans: "Hanken Grotesk Variable", ui-sans-serif, system-ui, sans-serif;
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-ok: var(--ok);
+  --color-warn: var(--warn);
+  --color-bad: var(--bad);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+@layer base {
+  * { @apply border-border outline-ring/50; }
+  body { @apply bg-background text-foreground font-sans antialiased; }
+  .tnum { font-variant-numeric: tabular-nums; }
+}
