@@ -1,10 +1,11 @@
-import { useCallback, useState } from "react"
+import { useCallback, useEffect, useState } from "react"
 
 export type Theme = "light" | "dark"
 
-/** The class is first set by the inline script in index.html; this keeps it and the saved choice in sync. */
+/** The class is first set by the inline script in the root route; this keeps it and the saved choice in sync. */
 export function useTheme() {
-  const [theme, setTheme] = useState<Theme>(() => (document.documentElement.classList.contains("dark") ? "dark" : "light"))
+  const [theme, setTheme] = useState<Theme>("light")
+  useEffect(() => setTheme(document.documentElement.classList.contains("dark") ? "dark" : "light"), [])
 
   const toggle = useCallback(() => {
     const next: Theme = theme === "dark" ? "light" : "dark"

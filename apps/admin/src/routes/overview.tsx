@@ -1,3 +1,5 @@
+import { useQuery } from "@tanstack/react-query"
+import { createFileRoute } from "@tanstack/react-router"
 import { useMemo } from "react"
 import { Bar, BarChart, CartesianGrid, XAxis } from "recharts"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
@@ -7,7 +9,8 @@ import { Skeleton } from "@/components/ui/skeleton"
 import { StateBadge } from "@/components/state-badge"
 import { ago, shortId, taka } from "@/lib/format"
 import { STATE_META } from "@/lib/states"
-import type { Payment } from "@/lib/types"
+import { paymentsQuery } from "@/lib/queries"
+import { useSelectPayment } from "@/hooks/use-select-payment"
 import { TriangleAlert } from "lucide-react"
 
 const HOUR = 36e5
@@ -30,7 +33,11 @@ function Kpi({ label, value, hint }: { label: string; value?: string; hint: stri
   )
 }
 
-export function OverviewPage({ payments, onSelect }: { payments?: Payment[]; onSelect: (id: string) => void }) {
+export const Route = createFileRoute("/overview")({ component: OverviewPage })
+
+function OverviewPage() {
+  const { data: payments } = useQuery(paymentsQuery)
+  const onSelect = useSelectPayment()
   const s = useMemo(() => {
     if (!payments) return undefined
     const now = Date.now()

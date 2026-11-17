@@ -4,7 +4,8 @@ import { toast } from "sonner"
 import { Button } from "@/components/ui/button"
 import { Separator } from "@/components/ui/separator"
 import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet"
-import { api, ApiError } from "@/lib/api"
+import { getPaymentState } from "@/lib/api"
+import { parseError } from "@/lib/errors"
 import { clock, taka } from "@/lib/format"
 import { STATE_META } from "@/lib/states"
 import type { Payment } from "@/lib/types"
@@ -27,10 +28,11 @@ export function PaymentSheet({ payment, onClose }: { payment?: Payment; onClose:
     if (!payment) return
     setChecking(true)
     try {
-      const s = await api.getPaymentState(payment.id)
+      const s = await getPaymentState({ data: payment.id })
       toast(`Switch reports: ${STATE_META[s].label}`, { description: `GET /api/pay/${payment.id}` })
     } catch (e) {
-      toast.error((e as ApiError).title, { description: (e as ApiError).detail })
+      const err = parseError(e)
+      toast.error(err.title, { description: err.detail })
     } finally { setChecking(false) }
   }
 

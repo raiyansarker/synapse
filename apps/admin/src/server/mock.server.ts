@@ -1,5 +1,5 @@
-import { ApiError, type Api } from "./api"
-import type { NewPayment, Payment, PaymentState } from "./types"
+import type { NewPayment, Payment, PaymentState } from "@/lib/types"
+import type { Backend } from "./backend.server"
 
 // Same rules as synapse.common.VirtualAddress.
 const VA = /^[a-z0-9]+@[a-z]+$/
@@ -58,18 +58,19 @@ function advance(p: Payment, r: Route, i = 1) {
 }
 
 const wait = <T,>(v: T) => new Promise<T>((res) => setTimeout(() => res(structuredClone(v)), 120))
-const fail = (title: string, detail: string, status: number): never => { throw new ApiError(title, detail, status, uuid()) }
+// Server function errors reach the browser as plain Errors, so title and detail travel in the message.
+const fail = (title: string, detail: string): never => { throw new Error(`${title}: ${detail}`) }
 
-export const mockApi: Api = {
+export const mockBackend: Backend = {
   listPayments: () => wait([...payments].sort((a, b) => b.createdAt.localeCompare(a.createdAt))),
   async getPaymentState(id) {
     const p = payments.find((x) => x.id === id)
-    return p ? wait(p.state) : fail("Transaction not found", `No Transaction exists with the given id ${id}`, 404)
+    return p ? wait(p.state) : fail("Transaction not found", `No Transaction exists with the given id ${id}`)
   },
   async createPayment(req: NewPayment) {
-    if (!VA.test(req.sva) || !VA.test(req.rva)) fail("Validation failed", "Virtual address must look like name@bank.", 400)
-    if (!(req.amount >= 0.01 && req.amount <= 1_000_000)) fail("Validation failed", "Amount must be between 0.01 and 1,000,000.00.", 400)
-    if (![req.sva, req.rva].every((a) => HANDLES.includes(a.split("@")[1]))) fail("Bank not found", "One or both virtual-address banks are unknown.", 404)
+    if (!VA.test(req.sva) || !VA.test(req.rva)) fail("Validation failed", "Virtual address must look like name@bank.")
+    if (!(req.amount >= 0.01 && req.amount <= 1_000_000)) fail("Validation failed", "Amount must be between 0.01 and 1,000,000.00.")
+    if (![req.sva, req.rva].every((a) => HANDLES.includes(a.split("@")[1]))) fail("Bank not found", "One or both virtual-address banks are unknown.")
     const t = iso(Date.now())
     const p: Payment = { id: uuid(), sva: req.sva, rva: req.rva, amount: req.amount, state: "ACCEPTED", createdAt: t, updatedAt: t }
     payments.push(p)

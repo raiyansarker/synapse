@@ -1,0 +1,34 @@
+# Type-checks and builds the admin dashboard.
+
+name: Admin build
+
+on:
+  pull_request:
+    paths:
+      - apps/admin/**
+      - .github/workflows/admin-build.yml
+  push:
+    branches:
+      - main
+    paths:
+      - apps/admin/**
+      - .github/workflows/admin-build.yml
+
+jobs:
+  build:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: apps/admin
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: apps/admin/package-lock.json
+
+      - run: npm ci
+      - run: npm run build
