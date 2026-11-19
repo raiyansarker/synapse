@@ -23,9 +23,12 @@ async function call<T>(path: string, init?: RequestInit): Promise<T> {
   return body.data as T
 }
 
-/** The first two routes exist on the switch today (Pay.java). The list route is the one it still needs; see README. */
+/** All routes connect directly to the switch (Pay.java and AdminPaymentsController.java). */
 export const switchBackend: Backend = {
   getPaymentState: async (id) => (await call<{ state: PaymentState }>(`/api/pay/${encodeURIComponent(id)}`)).state,
   createPayment: async (p) => (await call<{ idempotencyKey: string }>("/api/pay", { method: "POST", body: JSON.stringify(p) })).idempotencyKey,
-  listPayments: () => call<Payment[]>("/api/admin/payments"),
+  listPayments: async () => {
+    const list = await call<Payment[]>("/api/admin/payments")
+    return list.map((p) => ({ ...p, amount: Number(p.amount) }))
+  },
 }
