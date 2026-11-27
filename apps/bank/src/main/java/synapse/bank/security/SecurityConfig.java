@@ -23,6 +23,12 @@ public class SecurityConfig {
                 auth
                     .requestMatchers(HttpMethod.POST, "/api/users")
                     .permitAll()
+                    .requestMatchers(
+                        HttpMethod.POST,
+                        "/api/accounts/*/freeze",
+                        "/api/accounts/*/unfreeze",
+                        "/api/accounts/*/close")
+                    .hasRole("STAFF")
                     .anyRequest()
                     .authenticated())
         .httpBasic(Customizer.withDefaults())
