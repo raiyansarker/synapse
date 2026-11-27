@@ -52,8 +52,6 @@ Create the database named in `.env.example` before the first start. Hibernate up
 
 Variable names, a local Postgres URL, and a Neon URL are in [apps/upi/README.md](apps/upi/README.md) and [apps/bank/README.md](apps/bank/README.md).
 
-The bank exposes one demo route, `GET http://localhost:9090/demo/accounts/{id}`, so you can see the shared response shape. Any id other than `missing` returns the account. `missing` returns 404.
-
 ## Run the wallet
 
 ```bash

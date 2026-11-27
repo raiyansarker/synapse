@@ -26,3 +26,7 @@ logging:
     org.hibernate.orm.jdbc.bind: WARN
     org.springframework.jdbc: WARN
     org.postgresql: WARN
+
+springdoc:
+  api-docs:
+    path: /v3/api-docs
