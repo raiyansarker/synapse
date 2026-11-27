@@ -8,6 +8,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.OneToOne;
 import jakarta.persistence.Table;
+import java.util.Arrays;
 import java.time.Instant;
 import java.util.UUID;
 import java.util.regex.Pattern;
@@ -43,6 +44,9 @@ public class User {
   @OneToOne(fetch = FetchType.LAZY)
   @JoinColumn(name = "account_id", unique = true)
   private Account account;
+
+  @Column(columnDefinition = "bytea")
+  private byte[] avatar;
 
   @CreatedDate
   @Column(nullable = false, updatable = false)
@@ -95,5 +99,12 @@ public class User {
       throw new IllegalArgumentException("account virtual address must match the username");
     }
     this.account = account;
+  }
+
+  public void updateAvatar(byte[] avatar) {
+    if (avatar == null || avatar.length == 0) {
+      throw new IllegalArgumentException("avatar is required");
+    }
+    this.avatar = Arrays.copyOf(avatar, avatar.length);
   }
 }
