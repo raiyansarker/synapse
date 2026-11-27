@@ -30,9 +30,6 @@ public class User {
   @Column(nullable = false, length = 60)
   private String password;
 
-  @Column(nullable = false)
-  private boolean enabled;
-
   @CreatedDate
   @Column(nullable = false, updatable = false)
   private Instant createdAt;
@@ -43,11 +40,10 @@ public class User {
 
   protected User() {}
 
-  private User(String id, String username, String password, boolean enabled) {
+  private User(String id, String username, String password) {
     this.id = id;
     this.username = username;
     this.password = password;
-    this.enabled = enabled;
   }
 
   public static User register(String username, String encodedPassword) {
@@ -57,21 +53,6 @@ public class User {
     if (encodedPassword == null || encodedPassword.isBlank()) {
       throw new IllegalArgumentException("encoded password is required");
     }
-    return new User(UUID.randomUUID().toString(), username, encodedPassword, true);
-  }
-
-  public void changePassword(String encodedPassword) {
-    if (encodedPassword == null || encodedPassword.isBlank()) {
-      throw new IllegalArgumentException("encoded password is required");
-    }
-    this.password = encodedPassword;
-  }
-
-  public void disable() {
-    this.enabled = false;
-  }
-
-  public void enable() {
-    this.enabled = true;
+    return new User(UUID.randomUUID().toString(), username, encodedPassword);
   }
 }
