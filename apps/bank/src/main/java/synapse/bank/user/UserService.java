@@ -29,10 +29,7 @@ public class UserService {
           "The username " + request.username() + " is taken. Choose another one.");
     }
     User user =
-        User.register(
-            request.username(),
-            this.passwordEncoder.encode(request.password()),
-            this.passwordEncoder.encode(request.pin()));
+        User.register(request.username(), this.passwordEncoder.encode(request.pin()));
     Account account = Account.open(request.username());
     user.assignAccount(account);
     this.accounts.save(account);

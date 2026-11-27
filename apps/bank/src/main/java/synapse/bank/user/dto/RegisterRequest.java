@@ -9,9 +9,6 @@ public record RegisterRequest(
     String username,
 
     @NotBlank
-    String password,
-
-    @NotBlank
-    @Pattern(regexp = "[0-9]{4,6}", message = "pin must be 4-6 digits")
+    @Pattern(regexp = "[0-9]{5}", message = "pin must be 5 digits")
     String pin
 ) {}

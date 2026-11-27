@@ -18,7 +18,7 @@ public class DatabaseUserDetailsService implements UserDetailsService {
             .findByUsername(username)
             .orElseThrow(() -> new UsernameNotFoundException("user not found: " + username));
     return org.springframework.security.core.userdetails.User.withUsername(user.getUsername())
-        .password(user.getPassword())
+        .password(user.getPin())
         .roles(user.getRole().name())
         .build();
   }

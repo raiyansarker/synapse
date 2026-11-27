@@ -33,9 +33,6 @@ public class User {
   private String username;
 
   @Column(nullable = false, length = 60)
-  private String password;
-
-  @Column(nullable = false, length = 60)
   private String pin;
 
   @Column(nullable = false, length = 32)
@@ -58,29 +55,20 @@ public class User {
 
   protected User() {}
 
-  private User(String id, String username, String password, String pin, Role role) {
+  private User(String id, String username, String pin, Role role) {
     this.id = id;
     this.username = username;
-    this.password = password;
     this.pin = pin;
     this.role = role;
   }
 
-  public static User register(String username, String encodedPassword, String encodedPin) {
-    return register(username, encodedPassword, encodedPin, Role.CUSTOMER);
+  public static User register(String username, String encodedPin) {
+    return register(username, encodedPin, Role.CUSTOMER);
   }
 
-  public static User register(
-      String username,
-      String encodedPassword,
-      String encodedPin,
-      Role role
-  ) {
+  public static User register(String username, String encodedPin, Role role) {
     if (username == null || !USERNAME.matcher(username).matches()) {
       throw new IllegalArgumentException("username must be [a-z0-9]+, e.g. \"raiyan\"");
-    }
-    if (encodedPassword == null || encodedPassword.isBlank()) {
-      throw new IllegalArgumentException("encoded password is required");
     }
     if (encodedPin == null || encodedPin.isBlank()) {
       throw new IllegalArgumentException("encoded pin is required");
@@ -88,7 +76,7 @@ public class User {
     if (role == null) {
       throw new IllegalArgumentException("role is required");
     }
-    return new User(UUID.randomUUID().toString(), username, encodedPassword, encodedPin, role);
+    return new User(UUID.randomUUID().toString(), username, encodedPin, role);
   }
 
   public void assignAccount(Account account) {
