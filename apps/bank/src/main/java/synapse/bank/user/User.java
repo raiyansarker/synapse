@@ -30,6 +30,9 @@ public class User {
   @Column(nullable = false, length = 60)
   private String password;
 
+  @Column(nullable = false, length = 32)
+  private Role role;
+
   @CreatedDate
   @Column(nullable = false, updatable = false)
   private Instant createdAt;
@@ -40,19 +43,27 @@ public class User {
 
   protected User() {}
 
-  private User(String id, String username, String password) {
+  private User(String id, String username, String password, Role role) {
     this.id = id;
     this.username = username;
     this.password = password;
+    this.role = role;
   }
 
   public static User register(String username, String encodedPassword) {
+    return register(username, encodedPassword, Role.CUSTOMER);
+  }
+
+  public static User register(String username, String encodedPassword, Role role) {
     if (username == null || !USERNAME.matcher(username).matches()) {
       throw new IllegalArgumentException("username must be [a-z0-9]+, e.g. \"raiyan\"");
     }
     if (encodedPassword == null || encodedPassword.isBlank()) {
       throw new IllegalArgumentException("encoded password is required");
     }
-    return new User(UUID.randomUUID().toString(), username, encodedPassword);
+    if (role == null) {
+      throw new IllegalArgumentException("role is required");
+    }
+    return new User(UUID.randomUUID().toString(), username, encodedPassword, role);
   }
 }
