@@ -1,6 +1,8 @@
 # Builds the Synapse Wallet release APK and publishes a GitHub Release.
-# The tag is the 7-character commit hash. This runs on every branch and
-# ignores tags, so the tag it creates does not start another run.
+# The version is auto-incremented: major.minor comes from pubspec.yaml and
+# the patch is the workflow run number (tag: v<base>.<run number>). This runs
+# on every branch and ignores tags, so the tag it creates does not start
+# another run.
 # When the branch has an open pull request, the APK download link is posted there.
 # The built-in GITHUB_TOKEN is enough. permissions are granted below.
 
@@ -45,19 +47,25 @@ jobs:
         run: |
           # The checked-in Gradle file asks for an 8G heap. This runner has 7G total.
           printf '\norg.gradle.jvmargs=-Xmx2g -XX:MaxMetaspaceSize=512m -XX:ReservedCodeCacheSize=256m\n' >> android/gradle.properties
+          # Auto-incremented version: major.minor comes from pubspec.yaml, the
+          # patch number is the workflow run number, so it rises on every push
+          # and never collides (even after a major.minor bump in pubspec).
+          base="$(sed -n 's/^version: \([0-9]*\)\.\([0-9]*\).*/\1.\2/p' pubspec.yaml)"
+          ver="${base}.${GITHUB_RUN_NUMBER}"
           short="${GITHUB_SHA::7}"
           flutter build apk --release \
-            --build-name="1.0.0+${short}" \
+            --build-name="${ver}" \
             --build-number="${GITHUB_RUN_NUMBER}"
           cp build/app/outputs/flutter-apk/app-release.apk \
-            "build/app/outputs/flutter-apk/synapse-wallet-${short}.apk"
+            "build/app/outputs/flutter-apk/synapse-wallet-v${ver}-${short}.apk"
+          echo "ver=${ver}" >> "$GITHUB_OUTPUT"
           echo "short=${short}" >> "$GITHUB_OUTPUT"
         id: apk
 
       - uses: actions/upload-artifact@v7
         with:
-          name: synapse-wallet-${{ steps.apk.outputs.short }}
-          path: apps/mobile/build/app/outputs/flutter-apk/synapse-wallet-*.apk
+          name: synapse-wallet-v${{ steps.apk.outputs.ver }}-${{ steps.apk.outputs.short }}
+          path: apps/mobile/build/app/outputs/flutter-apk/synapse-wallet-v*.apk
           if-no-files-found: error
 
       - name: Publish the GitHub release
@@ -65,15 +73,16 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          short="${GITHUB_SHA::7}"
-          apk="build/app/outputs/flutter-apk/synapse-wallet-${short}.apk"
-          notes="$(printf 'Android release for commit %s.\n\n%s\n' "$GITHUB_SHA" "$(git log -1 --pretty=%B)")"
-          if gh release view "$short" >/dev/null 2>&1; then
-            gh release upload "$short" "$apk" --clobber
+          ver="${{ steps.apk.outputs.ver }}"
+          short="${{ steps.apk.outputs.short }}"
+          apk="build/app/outputs/flutter-apk/synapse-wallet-v${ver}-${short}.apk"
+          notes="$(printf 'Synapse Wallet v%s (commit %s).\n\n%s\n' "$ver" "$GITHUB_SHA" "$(git log -1 --pretty=%B)")"
+          if gh release view "v${ver}" >/dev/null 2>&1; then
+            gh release upload "v${ver}" "$apk" --clobber
           else
-            gh release create "$short" "$apk" \
+            gh release create "v${ver}" "$apk" \
               --target "$GITHUB_SHA" \
-              --title "Synapse Wallet ${short}" \
+              --title "Synapse Wallet v${ver}" \
               --notes "$notes"
           fi
 
@@ -81,10 +90,11 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          short="${GITHUB_SHA::7}"
-          url="https://github.com/${GITHUB_REPOSITORY}/releases/download/${short}/synapse-wallet-${short}.apk"
+          ver="${{ steps.apk.outputs.ver }}"
+          short="${{ steps.apk.outputs.short }}"
+          url="https://github.com/${GITHUB_REPOSITORY}/releases/download/v${ver}/synapse-wallet-v${ver}-${short}.apk"
           marker="<!-- synapse-android-apk -->"
-          body="$(printf '%s\nAndroid build `%s` is ready.\n\n[Download APK](%s)\n' "$marker" "$short" "$url")"
+          body="$(printf '%s\nAndroid build `v%s` (%s) is ready.\n\n[Download APK](%s)\n' "$marker" "$ver" "$short" "$url")"
           prs="$(gh pr list --head "${GITHUB_REF_NAME}" --state open --json number --jq '.[].number')"
           if [ -z "$prs" ]; then
             echo "No open pull request for ${GITHUB_REF_NAME}."
