@@ -1,6 +1,5 @@
 package synapse.bank.security;
 
-import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import org.springframework.context.annotation.Bean;
@@ -15,6 +14,7 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
 import synapse.bank.user.DatabaseUserDetailsService;
+import tools.jackson.databind.json.JsonMapper;
 import synapse.common.api.ApiError;
 import synapse.common.api.ApiMetaFactory;
 import synapse.common.api.ApiResponse;
@@ -26,7 +26,7 @@ public class SecurityConfig {
   SecurityFilterChain securityFilterChain(
       HttpSecurity http,
       ApiMetaFactory metaFactory,
-      ObjectMapper objectMapper
+      JsonMapper jsonMapper
   ) throws Exception {
     return http
         .csrf(csrf -> csrf.disable())
@@ -45,12 +45,12 @@ public class SecurityConfig {
                 e.authenticationEntryPoint(
                         (req, res, ex) ->
                             writeError(
-                                res, metaFactory, objectMapper, HttpStatus.FORBIDDEN,
+                                res, metaFactory, jsonMapper, HttpStatus.FORBIDDEN,
                                 "Forbidden", "Authentication is required"))
                     .accessDeniedHandler(
                         (req, res, ex) ->
                             writeError(
-                                res, metaFactory, objectMapper, HttpStatus.FORBIDDEN,
+                                res, metaFactory, jsonMapper, HttpStatus.FORBIDDEN,
                                 "Forbidden", "Access is denied")))
         .build();
   }
@@ -73,14 +73,14 @@ public class SecurityConfig {
   private static void writeError(
       HttpServletResponse response,
       ApiMetaFactory metaFactory,
-      ObjectMapper objectMapper,
+      JsonMapper jsonMapper,
       HttpStatus status,
       String title,
       String detail
   ) throws IOException {
     response.setStatus(status.value());
     response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-    objectMapper.writeValue(
+    jsonMapper.writeValue(
         response.getWriter(),
         ApiResponse.fail(
             ApiError.builder().title(title).detail(detail).build(), metaFactory.current()));
