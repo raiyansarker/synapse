@@ -36,9 +36,6 @@ public class Notification {
   @Column(nullable = false, length = 1024)
   private String message;
 
-  @Column(nullable = false)
-  private boolean read;
-
   @CreatedDate
   @Column(nullable = false, updatable = false)
   private Instant createdAt;
@@ -54,7 +51,6 @@ public class Notification {
     this.user = user;
     this.title = title;
     this.message = message;
-    this.read = false;
   }
 
   public static Notification of(User user, String title, String message) {
@@ -68,9 +64,5 @@ public class Notification {
       throw new IllegalArgumentException("message is required");
     }
     return new Notification(UUID.randomUUID().toString(), user, title, message);
-  }
-
-  public void markRead() {
-    this.read = true;
   }
 }

@@ -28,24 +28,6 @@ public class NotificationService {
         .toList();
   }
 
-  @Transactional
-  public void markRead(String userId, String notificationId) {
-    User user = findUser(userId);
-    Notification notification =
-        this.notifications
-            .findById(notificationId)
-            .orElseThrow(
-                () ->
-                    new NotFoundException(
-                        "Notification not found", "No notification exists with id " + notificationId));
-    if (!notification.getUser().getId().equals(user.getId())) {
-      throw new NotFoundException(
-          "Notification not found", "No notification exists with id " + notificationId);
-    }
-    notification.markRead();
-    this.notifications.save(notification);
-  }
-
   private User findUser(String userId) {
     return this.users
         .findById(userId)
@@ -54,10 +36,7 @@ public class NotificationService {
 
   private static NotificationResponse toResponse(Notification notification) {
     return new NotificationResponse(
-        notification.getId(),
-        notification.getTitle(),
-        notification.getMessage(),
-        notification.isRead(),
+        notification.getId(), notification.getTitle(), notification.getMessage(),
         notification.getCreatedAt());
   }
 }
