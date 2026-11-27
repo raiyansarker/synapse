@@ -23,7 +23,7 @@ public class ScalarDocsController {
             <script
               id="api-reference"
               data-url="/v3/api-docs"
-              data-theme="halloween"
+              data-configuration='{"theme":"halloween"}'
               src="https://cdn.jsdelivr.net/npm/@scalar/api-reference"
             ></script>
           </body>
