@@ -2,6 +2,8 @@ package synapse.bank.user.controller;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.httpBasic;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -10,9 +12,13 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
 import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MockMvc;
+import synapse.bank.security.SecurityConfig;
+import synapse.bank.user.DatabaseUserDetailsService;
 import synapse.bank.user.Role;
 import synapse.bank.user.UserService;
 import synapse.bank.user.dto.UserResponse;
@@ -21,11 +27,16 @@ import synapse.common.exception.ConflictException;
 
 @WebMvcTest(Users.class)
 @ImportAutoConfiguration(CommonHttpAutoConfiguration.class)
+@Import(SecurityConfig.class)
 class UsersTest {
 
   @Autowired private MockMvc mvc;
 
+  @Autowired private PasswordEncoder passwordEncoder;
+
   @MockitoBean private UserService userService;
+
+  @MockitoBean private DatabaseUserDetailsService userDetailsService;
 
   @Test
   void registerReturnsCreatedUser() throws Exception {
@@ -66,6 +77,24 @@ class UsersTest {
         .andExpect(jsonPath("$.success").value(false))
         .andExpect(jsonPath("$.data").doesNotExist())
         .andExpect(jsonPath("$.error.title").value("User already exists"));
+  }
+
+  @Test
+  void protectedRouteRejectsUnauthenticatedRequests() throws Exception {
+    mvc.perform(get("/api/users")).andExpect(status().isUnauthorized());
+  }
+
+  @Test
+  void protectedRouteAcceptsBasicAuth() throws Exception {
+    when(userDetailsService.loadUserByUsername("raiyan"))
+        .thenReturn(
+            org.springframework.security.core.userdetails.User.withUsername("raiyan")
+                .password(passwordEncoder.encode("secret123"))
+                .roles("CUSTOMER")
+                .build());
+
+    mvc.perform(get("/api/users").with(httpBasic("raiyan", "secret123")))
+        .andExpect(status().isMethodNotAllowed());
   }
 
   @Test
