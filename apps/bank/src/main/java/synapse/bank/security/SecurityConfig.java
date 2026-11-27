@@ -23,6 +23,8 @@ public class SecurityConfig {
                 auth
                     .requestMatchers(HttpMethod.POST, "/api/users")
                     .permitAll()
+                    .requestMatchers("/docs", "/v3/api-docs", "/v3/api-docs/**")
+                    .permitAll()
                     .anyRequest()
                     .authenticated())
         .httpBasic(Customizer.withDefaults())
