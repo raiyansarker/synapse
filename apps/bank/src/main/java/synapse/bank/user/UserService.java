@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import synapse.bank.account.Account;
 import synapse.bank.account.AccountRepository;
+import synapse.bank.account.dto.AccountResponse;
 import synapse.bank.user.dto.RegisterRequest;
 import synapse.bank.user.dto.UserResponse;
 import synapse.common.exception.BadRequestException;
@@ -37,6 +38,7 @@ public class UserService {
     return toResponse(user);
   }
 
+  @Transactional(readOnly = true)
   public UserResponse getUser(String id) {
     return toResponse(findUser(id));
   }
@@ -70,6 +72,12 @@ public class UserService {
   }
 
   private static UserResponse toResponse(User user) {
-    return new UserResponse(user.getId(), user.getUsername(), user.getRole());
+    Account account = user.getAccount();
+    AccountResponse accountResponse =
+        account == null
+            ? null
+            : new AccountResponse(
+                account.getVirtualAddress(), account.getBalance(), account.getStatus());
+    return new UserResponse(user.getId(), user.getUsername(), user.getRole(), accountResponse);
   }
 }
