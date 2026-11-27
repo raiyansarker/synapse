@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import org.junit.jupiter.api.Test;
+import synapse.bank.account.Account;
 
 class UserTest {
 
@@ -38,5 +39,23 @@ class UserTest {
   void registerRejectsBlankPassword() {
     assertThrows(IllegalArgumentException.class, () -> User.register("raiyan", null));
     assertThrows(IllegalArgumentException.class, () -> User.register("raiyan", "  "));
+  }
+
+  @Test
+  void assignAccountLinksAccountWithSameUsername() {
+    User user = User.register("raiyan", "hash");
+    Account account = Account.open("raiyan");
+
+    user.assignAccount(account);
+
+    assertEquals(account, user.getAccount());
+  }
+
+  @Test
+  void assignAccountRejectsMismatchedOrNullAccount() {
+    User user = User.register("raiyan", "hash");
+
+    assertThrows(IllegalArgumentException.class, () -> user.assignAccount(Account.open("other")));
+    assertThrows(IllegalArgumentException.class, () -> user.assignAccount(null));
   }
 }
